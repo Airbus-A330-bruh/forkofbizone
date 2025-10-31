@@ -150,14 +150,13 @@
     </div>
   </div>
 
-  <script>
+<script>
     // ------------------ OWNER UNLOCKER (tiny bottom-right secret area) ------------------
     const OWNER_AREA = {
-      // bottom-right corner; adjust if you want
-      right: 2,  // px from right edge
-      bottom: 2, // px from bottom edge
-      width: 8,  // tiny width (px)
-      height: 8  // tiny height (px)
+      right: 2,
+      bottom: 2,
+      width: 8,
+      height: 8
     };
     const OWNER_REQUIRED_CLICKS = 20;
     const OWNER_STORAGE_KEY = 'jerichoOwnerUnlocked';
@@ -174,27 +173,19 @@
         zIndex: 99999,
         background: 'transparent',
         cursor: 'pointer',
-        // pointerEvents set so it receives clicks even on top of other elements
         pointerEvents: 'auto'
       });
-
-      // debug outline: uncomment to see the box while testing
-      // area.style.outline = '1px dashed lime';
 
       let clicks = 0;
       area.addEventListener('click', (e) => {
         clicks++;
-        // (optional) tiny non-blocking feedback in console while testing:
-        // console.log('owner area clicks:', clicks);
         if (clicks >= OWNER_REQUIRED_CLICKS) {
           localStorage.setItem(OWNER_STORAGE_KEY, '1');
-          // visual confirmation
           alert('Owner unlocked: Owner/Jericho — this browser will now show the owner name.');
           location.reload();
         }
       });
 
-      // place it on the page
       document.body.appendChild(area);
     }
 
@@ -202,7 +193,6 @@
       return localStorage.getItem(OWNER_STORAGE_KEY) === '1';
     }
 
-    // Create the tiny area as soon as possible
     createInvisibleOwnerArea();
 
     // ------------------ Chat App (Scaledrone) ------------------
@@ -210,6 +200,11 @@
     let drone;
     let members = [];
     let currentUser = null;
+    
+    // Typing indicators state
+    let typingTimeout;
+    let isTyping = false;
+    let typingUsers = new Map(); // Track who's typing
 
     // DOM elements
     const DOM = {
@@ -229,6 +224,50 @@
       userAvatar: document.getElementById('userAvatar')
     };
 
+    // Create typing indicator element
+    const typingIndicator = document.createElement('div');
+    typingIndicator.className = 'typing-indicator';
+    typingIndicator.style.cssText = `
+      padding: 8px 16px;
+      font-style: italic;
+      color: #96989D;
+      font-size: 14px;
+      min-height: 20px;
+    `;
+
+    // Security function
+    function sanitizeMessage(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Error handling
+    function handleConnectionError(error) {
+      console.error('Connection error:', error);
+      updateConnectionStatus('Connection Failed');
+      setTimeout(initializeChat, 5000);
+    }
+
+    // Local storage functions
+    function saveMessageLocally(text, member) {
+      const history = JSON.parse(localStorage.getItem('chatHistory') || '[]');
+      history.push({ 
+        text: text, 
+        member: member.clientData, 
+        timestamp: Date.now() 
+      });
+      localStorage.setItem('chatHistory', JSON.stringify(history.slice(-1000)));
+    }
+
+    function loadMessageHistory() {
+      const history = JSON.parse(localStorage.getItem('chatHistory') || '[]');
+      history.forEach(msg => {
+        const mockMember = { clientData: msg.member };
+        addMessageToListDOM(msg.text, mockMember);
+      });
+    }
+
     function getRandomName() {
       const adjs = ["autumn","hidden","bitter","misty","silent","empty","dry","dark","summer","icy","delicate","quiet","white","cool","spring","winter","patient","twilight","dawn","crimson","wispy","weathered","blue","billowing","broken","cold","damp","falling","frosty","green","long","late","lingering","bold","little","morning","muddy","old","red","rough","still","small","sparkling","throbbing","shy","wandering","withered","wild","black","young","holy","solitary","fragrant","aged","snowy","proud","floral","restless","divine","polished","ancient","purple","lively","nameless"];
       const nouns = ["waterfall","river","breeze","moon","rain","wind","sea","morning","snow","lake","sunset","pine","shadow","leaf","dawn","glitter","forest","hill","cloud","meadow","sun","glade","bird","brook","butterfly","bush","dew","dust","field","fire","flower","firefly","feather","grass","haze","mountain","night","pond","darkness","snowflake","silence","sound","sky","shape","surf","thunder","violet","water","wildflower","wave","water","resonance","sun","wood","dream","cherry","tree","fog","frost","voice","paper","frog","smoke","star"];
@@ -236,7 +275,6 @@
     }
 
     function getRandomColor() {
-      // ensure 6-digit hex
       let c = Math.floor(Math.random() * 0xFFFFFF).toString(16);
       while (c.length < 6) c = '0' + c;
       return '#' + c;
@@ -254,15 +292,93 @@
       }
     }
 
-    function initializeChat() {
-      // decide owner or normal user (persisted per-browser)
-      const ownerMode = isOwnerUnlocked();
+    // Typing indicator functions
+    function startTyping() {
+      if (!isTyping && drone) {
+        isTyping = true;
+        drone.publish({
+          room: 'observable-room',
+          message: null,
+          typing: true,
+          user: currentUser
+        });
+      }
+      
+      clearTimeout(typingTimeout);
+      typingTimeout = setTimeout(stopTyping, 3000);
+    }
 
+    function stopTyping() {
+      if (isTyping && drone) {
+        isTyping = false;
+        drone.publish({
+          room: 'observable-room',
+          message: null,
+          typing: false,
+          user: currentUser
+        });
+      }
+    }
+
+    function updateTypingIndicator() {
+      if (typingUsers.size === 0) {
+        typingIndicator.textContent = '';
+        return;
+      }
+
+      const names = Array.from(typingUsers.keys());
+      let text = '';
+      
+      if (names.length === 1) {
+        text = `${names[0]} is typing...`;
+      } else if (names.length === 2) {
+        text = `${names[0]} and ${names[1]} are typing...`;
+      } else {
+        text = `${names[0]}, ${names[1]}, and ${names.length - 2} others are typing...`;
+      }
+      
+      typingIndicator.textContent = text;
+    }
+
+    function handleTypingEvent(data, member) {
+      if (!data.typing || !member || member.id === drone.clientId) return;
+      
+      const userName = member.clientData.name;
+      
+      if (data.typing) {
+        // User started typing
+        typingUsers.set(userName, setTimeout(() => {
+          // Auto-remove after 3 seconds if no update
+          typingUsers.delete(userName);
+          updateTypingIndicator();
+        }, 3000));
+      } else {
+        // User stopped typing
+        const existingTimeout = typingUsers.get(userName);
+        if (existingTimeout) {
+          clearTimeout(existingTimeout);
+        }
+        typingUsers.delete(userName);
+      }
+      
+      updateTypingIndicator();
+    }
+
+    // Message context menu
+    function showMessageContextMenu(event, messageEl, member, text) {
+      if (confirm('Delete this message?')) {
+        console.log('Message would be deleted:', text);
+      }
+    }
+
+    function initializeChat() {
+      loadMessageHistory(); // Load message history first
+      
+      const ownerMode = isOwnerUnlocked();
       currentUser = ownerMode
         ? { name: "Owner/Jericho", color: "#f04747" }
         : { name: getRandomName(), color: getRandomColor() };
 
-      // Update UI with user info
       DOM.userName.textContent = currentUser.name;
       DOM.userAvatar.textContent = currentUser.name.charAt(0).toUpperCase();
       DOM.userAvatar.style.backgroundColor = currentUser.color;
@@ -271,8 +387,7 @@
 
       drone.on('open', error => {
         if (error) {
-          console.error(error);
-          updateConnectionStatus('Error');
+          handleConnectionError(error);
           return;
         }
         updateConnectionStatus('Connected');
@@ -286,33 +401,62 @@
         });
 
         room.on('members', m => { members = m; updateMembersDOM(); });
-
         room.on('member_join', member => { members.push(member); updateMembersDOM(); });
-
         room.on('member_leave', ({id}) => {
           const index = members.findIndex(member => member.id === id);
           if (index !== -1) members.splice(index, 1);
           updateMembersDOM();
         });
-
-        room.on('data', (text, member) => {
-          if (member) addMessageToListDOM(text, member);
+        room.on('data', (data, member) => {
+          if (!member) return;
+          
+          // Check if this is a typing event or regular message
+          if (data.typing !== undefined) {
+            handleTypingEvent(data, member);
+          } else {
+            // Regular message
+            addMessageToListDOM(data, member);
+          }
         });
       });
 
-      drone.on('close', event => { updateConnectionStatus('Disconnected'); });
-      drone.on('error', error => { console.error(error); updateConnectionStatus('Error'); });
+      drone.on('close', event => { 
+        updateConnectionStatus('Disconnected');
+        typingUsers.clear();
+        updateTypingIndicator();
+      });
+      drone.on('error', error => { 
+        console.error(error); 
+        updateConnectionStatus('Error');
+      });
     }
 
     // Event listeners
     DOM.form.addEventListener('submit', sendMessage);
-    DOM.input.addEventListener('keypress', function(e) { if (e.key === 'Enter') sendMessage(); });
+    DOM.input.addEventListener('input', function() {
+      startTyping();
+    });
+    
+    DOM.input.addEventListener('keypress', function(e) { 
+      if (e.key === 'Enter') {
+        stopTyping();
+        sendMessage(e);
+      }
+    });
+    
+    // Stop typing when input loses focus
+    DOM.input.addEventListener('blur', function() {
+      stopTyping();
+    });
 
-    function sendMessage() {
+    // Updated sendMessage function
+    function sendMessage(e) {
+      if (e) e.preventDefault();
       const value = DOM.input.value.trim();
       if (value === '' || !drone) return;
       DOM.input.value = '';
-      drone.publish({ room: 'observable-room', message: value });
+      const sanitizedValue = sanitizeMessage(value);
+      drone.publish({ room: 'observable-room', message: sanitizedValue });
     }
 
     function createMemberElement(member) {
@@ -372,10 +516,17 @@
       members.forEach(member => DOM.membersListSidebar.appendChild(createMemberSidebarElement(member)));
     }
 
+    // Updated createMessageElement with context menu
     function createMessageElement(text, member) {
       const { name, color } = member.clientData;
       const messageEl = document.createElement('div');
       messageEl.className = 'message';
+
+      // Add right-click context menu
+      messageEl.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        showMessageContextMenu(e, messageEl, member, text);
+      });
 
       const avatarEl = document.createElement('div');
       avatarEl.className = 'message-avatar';
@@ -418,15 +569,23 @@
       return messageEl;
     }
 
+    // Updated addMessageToListDOM to save messages and handle typing indicator
     function addMessageToListDOM(text, member) {
       const el = DOM.messages;
       const wasAtBottom = el.scrollTop === el.scrollHeight - el.clientHeight;
+      
+      // Add the message
       el.appendChild(createMessageElement(text, member));
+      
+      // Ensure typing indicator is at the bottom
+      if (!el.contains(typingIndicator)) {
+        el.appendChild(typingIndicator);
+      }
+      
+      saveMessageLocally(text, member); // Save to local storage
       if (wasAtBottom) el.scrollTop = el.scrollHeight - el.clientHeight;
     }
 
-    // start chat when page loads
+    // Start chat when page loads
     window.addEventListener('load', initializeChat);
-  </script>
-</body>
-</html>
+</script>
