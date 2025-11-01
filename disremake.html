@@ -259,19 +259,41 @@ function updateConnectionStatus(status) {
 
 // clear button (per-room)
 const clearBtn = document.createElement('button');
-clearBtn.textContent = '🗑️ Clear Chat';
-clearBtn.style.background = 'none';
-clearBtn.style.border = 'none';
-clearBtn.style.color = '#ED4245';
-clearBtn.style.fontWeight = '600';
-clearBtn.style.cursor = 'pointer';
-clearBtn.style.fontSize = '14px';
+clearBtn.innerHTML = '🗑️';
+Object.assign(clearBtn.style, {
+  position: 'fixed',
+  left: '12px',
+  bottom: '12px',
+  background: '#2c2d31',
+  color: '#ED4245',
+  border: 'none',
+  borderRadius: '6px',
+  padding: '6px',
+  fontSize: '18px',
+  cursor: 'pointer',
+  zIndex: '1000',
+  boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+  transition: 'transform 0.1s ease, background 0.2s ease'
+});
+
+// Hover effect
+clearBtn.addEventListener('mouseenter', () => {
+  clearBtn.style.transform = 'scale(1.1)';
+  clearBtn.style.background = '#3a3b3f';
+});
+clearBtn.addEventListener('mouseleave', () => {
+  clearBtn.style.transform = 'scale(1)';
+  clearBtn.style.background = '#2c2d31';
+});
+
+// Click action
 clearBtn.addEventListener('click', () => {
   if (!confirm(`Clear saved chat for "${currentRoomName}"?`)) return;
   localStorage.removeItem(getRoomStorageKey(currentRoomName));
   DOM.messages.innerHTML = '';
 });
-DOM.chatHeader.querySelector('.chat-header-right').appendChild(clearBtn);
+
+document.body.appendChild(clearBtn);
 
 // ========== Message DOM helpers ==========
 function createMessageElement(text, authorName, color, isoTime) {
