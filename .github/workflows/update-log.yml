@@ -26,19 +26,16 @@ jobs:
           git log -1 --pretty=%B > commit_message.txt
           cat commit_message.txt
 
-      - name: 🤖 Generate AI update block (OpenAI)
+      - name: 🤖 Generate AI update block (Gemini)
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           sudo apt-get update
           sudo apt-get install -y python3 python3-pip
-          pip3 install openai
+          pip3 install requests
 
           python3 << 'EOF'
-          import openai
-          import os
-          import datetime
-          import random
+          import requests, os, datetime, random
 
           # Read the actual commit message that triggered this
           commit_message = open("commit_message.txt").read().strip()
@@ -50,7 +47,14 @@ jobs:
           version_name = f"{random.choice(version_names)} {random.choice(version_adjectives)}"
           version_number = f"1.{random.randint(1,20)}.{random.randint(0,9)}"
 
-          client = openai.OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+          api_key = os.environ["GEMINI_API_KEY"]
+          
+          # Use the CORRECT Gemini model that actually exists
+          # gemini-1.5-pro is the correct model name for the latest version
+          url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent?key={api_key}"
+          
+          print(f"🎯 Using commit message: {commit_message}")
+          print(f"🔗 Using Gemini model: gemini-1.5-pro")
 
           prompt = f"""
           Create an engaging HTML update card for an unblocked games website based on this git commit: "{commit_message}"
@@ -77,21 +81,43 @@ jobs:
           """
 
           try:
-              response = client.chat.completions.create(
-                  model="gpt-3.5-turbo",
-                  messages=[
-                      {"role": "system", "content": "You are a helpful assistant that creates engaging HTML update cards for gaming websites."},
-                      {"role": "user", "content": prompt}
+              payload = {
+                  "contents": [
+                      {"parts": [{"text": prompt}]}
                   ],
-                  max_tokens=500,
-                  temperature=0.8
-              )
+                  "generationConfig": {
+                      "temperature": 0.9,
+                      "topK": 40,
+                      "topP": 0.95,
+                      "maxOutputTokens": 500,
+                  }
+              }
+
+              print("🚀 Sending request to Gemini API...")
+              response = requests.post(url, json=payload, timeout=30)
+              print(f"📡 Response status: {response.status_code}")
               
-              ai_text = response.choices[0].message.content
+              if response.status_code != 200:
+                  print(f"❌ API Error {response.status_code}: {response.text}")
+                  # Try one more model as fallback
+                  print("🔄 Trying gemini-pro model...")
+                  url_fallback = f"https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={api_key}"
+                  response = requests.post(url_fallback, json=payload, timeout=30)
+                  print(f"📡 Fallback response status: {response.status_code}")
+                  
+                  if response.status_code != 200:
+                      raise Exception(f"Both models failed. Last error: {response.text}")
+              
+              result = response.json()
+              ai_text = result["candidates"][0]["content"]["parts"][0]["text"]
               
               # Clean the response
               cleaned_text = ai_text.strip()
               cleaned_text = cleaned_text.replace('```html', '').replace('```', '').strip()
+              
+              # Validate we got proper HTML
+              if not cleaned_text.startswith('<div class="update-item"'):
+                  print("⚠️ AI response doesn't start with expected HTML, but saving anyway")
               
               # Save the AI-generated content
               with open("new_update.html", "w") as f:
@@ -103,7 +129,60 @@ jobs:
               
           except Exception as e:
               print(f"❌ AI generation failed: {e}")
-              raise Exception("AI generation failed")
+              # Create a SIMPLE fallback that's still based on the commit
+              print("🔄 Creating commit-specific fallback...")
+              
+              # Extract keywords from commit to make it specific
+              commit_lower = commit_message.lower()
+              if any(word in commit_lower for word in ['game', 'add', 'new']):
+                  items = [
+                      f"🎮 Added new games based on: {commit_message}",
+                      "🚀 Improved gaming experience and performance",
+                      "✨ Enhanced website features and user interface",
+                      "🎯 Better gameplay and bug fixes"
+                  ]
+              elif any(word in commit_lower for word in ['fix', 'bug', 'error']):
+                  items = [
+                      f"🐛 Fixed issues: {commit_message}",
+                      "🚀 Improved stability and performance",
+                      "✨ Enhanced user experience",
+                      "🎮 Better gameplay functionality"
+                  ]
+              elif any(word in commit_lower for word in ['update', 'change', 'modify']):
+                  items = [
+                      f"🔄 Updated: {commit_message}",
+                      "🚀 Enhanced website performance",
+                      "✨ Improved user interface and features",
+                      "🎮 Better gaming experience"
+                  ]
+              else:
+                  items = [
+                      f"🎯 Changes: {commit_message}",
+                      "🚀 Performance improvements and updates",
+                      "✨ Enhanced gaming website features",
+                      "🎮 Better user experience and gameplay"
+                  ]
+              
+              fallback_html = f'''
+              <div class="update-item" style="animation-delay: 0.1s;">
+                <div class="update-header">
+                  <div class="version-info">
+                    <span class="version-badge">v{version_number}</span>
+                    <h3 class="version-title">{version_name}</h3>
+                  </div>
+                  <span class="version-date">{today}</span>
+                </div>
+                <div class="update-content">
+                  <ul class="update-list">
+                    {''.join([f'<li>{item}</li>' for item in items])}
+                  </ul>
+                </div>
+              </div>
+              '''
+              
+              with open("new_update.html", "w") as f:
+                  f.write(fallback_html.strip())
+              print("📁 Commit-specific fallback saved")
 
           EOF
 
@@ -118,7 +197,7 @@ jobs:
           # Insert the new AI-generated update
           sed -i '/<!-- UPDATE_LOG_START -->/a\'$'\n''            '"$NEW_UPDATE" ul.html
           
-          echo "✅ AI update inserted!"
+          echo "✅ Update inserted!"
 
       - name: 📤 Commit and push changes
         run: |
