@@ -1,146 +1,100 @@
-name: Auto Update Log (Gemini 2.5)
+name: Auto Update Log
 
 on:
   push:
     branches:
       - main
-      - master
-    paths-ignore:
-      - "ul.html"   # avoid infinite loop when the workflow updates ul.html
-
-permissions:
-  contents: write
 
 jobs:
   generate-update-log:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository (full history for diff)
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 2
 
-      - name: Install tools
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Get latest commit message
+        id: commitmsg
         run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
+          MSG=$(git log -1 --pretty=format:"%s%n%n%b")
+          printf "msg<<EOF\n%s\nEOF\n" "$MSG" >> $GITHUB_OUTPUT
 
-      - name: Get commit message
-        id: commit
-        run: |
-          echo "message<<EOF" >> $GITHUB_OUTPUT
-          git log -1 --pretty=%B >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Get changed files and full patch
+      - name: Get git diff
         id: diff
         run: |
-          FILES=$(git diff --name-only HEAD~1 HEAD || true)
-          PATCH=$(git diff HEAD~1 HEAD || true)
-          echo "files<<EOF" >> $GITHUB_OUTPUT
-          echo "$FILES" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          echo "patch<<EOF" >> $GITHUB_OUTPUT
-          echo "$PATCH" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          DIFF=$(git show --pretty="" --unified=4)
+          printf "diff<<EOF\n%s\nEOF\n" "$DIFF" >> $GITHUB_OUTPUT
 
-      - name: Request human-friendly summary from Gemini 2.5
-        id: ai
+      - name: Build Gemini prompt
+        id: prompt
+        run: |
+          VERSION=$(grep -oP 'v\K[0-9]+\.[0-9]+\.[0-9]+' ul.html | head -n 1)
+          if [ -z "$VERSION" ]; then VERSION="1.0.0"; fi
+
+          IFS='.' read -r MAJ MIN PATCH <<< "$VERSION"
+          PATCH=$((PATCH + 1))
+          NEW_VERSION="$MAJ.$MIN.$PATCH"
+
+          {
+            echo "text<<EOF"
+            echo "Generate an HTML update block matching EXACTLY this structure:"
+            echo ""
+            echo "<div class=\"update-item\" style=\"--delay: 1\">"
+            echo "<span class=\"version\">v${NEW_VERSION}</span>"
+            echo "<h3>[TITLE]</h3>"
+            echo "<p>[DESCRIPTION]</p>"
+            echo "</div>"
+            echo ""
+            echo "Rules:"
+            echo "- Replace [TITLE] with a short, accurate title based on commit message + diff."
+            echo "- Replace [DESCRIPTION] with a simple paragraph explaining main changes."
+            echo "- NO extra formatting, no bullets, no markdown."
+            echo "- Keep the class names EXACT and unchanged."
+            echo "- ONLY output the HTML block."
+            echo ""
+            echo "Commit Message:"
+            echo "${{ steps.commitmsg.outputs.msg }}"
+            echo ""
+            echo "Git Diff:"
+            echo "${{ steps.diff.outputs.diff }}"
+            echo ""
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
+      - name: Generate update block using Gemini
+        id: gemini
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          # Build JSON payload safely (variables expanded)
-          PAYLOAD=$(cat <<EOF
-{
-  "contents": [
-    {
-      "parts": [
-        {
-          "text": "You are an assistant that writes website update notes for non-coders. Read the commit message, file list, and code diff below and produce 2–4 short, clear bullet points describing what changed, written in simple non-technical language (no code, no diffs). Each bullet should be on its own line. Keep it concise and professional.\n\nCommit message:\n${{ steps.commit.outputs.message }}\n\nFiles changed:\n${{ steps.diff.outputs.files }}\n\nCode patch:\n${{ steps.diff.outputs.patch }}"
-        }
-      ]
-    }
-  ]
-}
-EOF
-)
+          JSON=$(jq -n --arg text "${{ steps.prompt.outputs.text }}" \
+            '{ contents: [ { parts: [ { text: $text } ] } ] }')
 
-          # Call Gemini 2.5 Flash
           RESPONSE=$(curl -s -X POST \
             -H "Content-Type: application/json" \
-            -d "$PAYLOAD" \
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}")
+            -d "$JSON" \
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$GEMINI_API_KEY")
 
-          echo "RAW_RESPONSE<<EOF" >> $GITHUB_OUTPUT
-          echo "$RESPONSE" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          OUTPUT=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text')
 
-          # Extract text safely
-          SUMMARY=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // ""' | sed 's/\r//g')
+          printf "result<<EOF\n%s\nEOF\n" "$OUTPUT" >> $GITHUB_OUTPUT
 
-          if [ -z "$SUMMARY" ]; then
-            echo "ERROR: Gemini returned empty summary. Response printed above."
-            exit 1
-          fi
-
-          echo "summary<<EOF" >> $GITHUB_OUTPUT
-          echo "$SUMMARY" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Build HTML entry and insert into ul.html
+      - name: Insert update block into ul.html
         run: |
-          # compute version and date
-          VERSION="1.$(date +%m).$(date +%d).$(git rev-parse --short HEAD)"
-          TODAY=$(date +"%B %d, %Y")
-
-          # get the AI summary (multiple lines)
-          AI_SUMMARY="${{ steps.ai.outputs.summary }}"
-
-          # escape HTML characters in summary lines (simple replacement)
-          escape() {
-            echo "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'
-          }
-
-          # create list items from each non-empty line
-          LIST_FILE=$(mktemp)
-          echo "$AI_SUMMARY" | sed '/^\s*$/d' | while IFS= read -r line; do
-            esc=$(escape "$line")
-            printf "    <li>%s</li>\n" "$esc" >> "$LIST_FILE"
-          done
-
-          # build the full HTML block into a temp file
-          ENTRY_FILE=$(mktemp)
-          cat > "$ENTRY_FILE" <<HTML
-<div class="update-item">
-  <h2 class="version-title">Website Version ${VERSION}</h2>
-  <p class="version-date">${TODAY}</p>
-  <ul class="update-list">
-$(cat "$LIST_FILE")
-  </ul>
-</div>
-HTML
-
-          # Insert the block after the UPDATE_LOG_START marker
-          # Create a new file with the inserted entry
-          awk -v marker='<!-- UPDATE_LOG_START -->' -v insertfile="$ENTRY_FILE" '
-            $0 ~ marker {
-              print
-              while((getline line < insertfile) > 0) print line
-              close(insertfile)
+          TMPFILE=$(mktemp)
+          awk -v insert="${{ steps.gemini.outputs.result }}" '
+            /<h2 class="section-title">Latest Updates<\/h2>/ {
+              print;
+              print insert "\n";
               next
-            }
-            { print }
-          ' ul.html > ul_new.html
+            }1
+          ' ul.html > "$TMPFILE"
+          mv "$TMPFILE" ul.html
 
-          # Replace original file
-          mv ul_new.html ul.html
-          rm -f "$ENTRY_FILE" "$LIST_FILE"
-
-      - name: Commit & push updated ul.html
+      - name: Commit changes
         run: |
-          git config --local user.email "actions@github.com"
-          git config --local user.name "GitHub Actions"
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
           git add ul.html
-          git commit -m "Automated AI update log entry" || echo "No changes to commit"
-          git push || echo "Push failed"
+          git commit -m "Auto update log entry" || echo "No changes to commit."
+          git push
