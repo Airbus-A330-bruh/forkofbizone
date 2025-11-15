@@ -20,28 +20,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 📝 Get commit and optimized file changes
+      - name: 📝 Get full commit information
         run: |
-          echo "=== TRIGGERING COMMIT ==="
-          git log -1 --pretty=%B > commit_message.txt
+          echo "=== COMMIT SUBJECT ==="
+          git log -1 --pretty=%s > commit_subject.txt
+          echo "=== COMMIT DESCRIPTION ==="
+          git log -1 --pretty=%b > commit_description.txt
           echo "=== CHANGED FILES ==="
           git diff --name-only HEAD~1 HEAD > changed_files.txt 2>/dev/null || echo "Initial commit" > changed_files.txt
           
-          # Get optimized diffs (only key changes, not full files)
-          echo "=== OPTIMIZED FILE CHANGES ===" > file_changes.txt
-          while IFS= read -r file; do
-            if [[ -n "$file" && "$file" != "Initial commit" ]]; then
-              echo "--- $file ---" >> file_changes.txt
-              # Get only the actual changed lines, limit to 20 lines per file
-              git diff --unified=0 HEAD~1 HEAD -- "$file" | grep -E "^(\+|\-)" | head -20 >> file_changes.txt 2>/dev/null || echo "No significant changes detected" >> file_changes.txt
-              echo "" >> file_changes.txt
-            fi
-          done < changed_files.txt
-          
-          cat commit_message.txt
-          cat changed_files.txt
-          echo "=== OPTIMIZED CHANGES PREVIEW ==="
-          head -30 file_changes.txt
+          echo "Subject: $(cat commit_subject.txt)"
+          echo "Description: $(cat commit_description.txt)"
+          echo "Files: $(cat changed_files.txt)"
 
       - name: 🤖 Generate AI update block (Gemini)
         env:
@@ -54,10 +44,10 @@ jobs:
           python3 << 'EOF'
           import requests, os, datetime, random
 
-          # Read commit, file changes, and optimized diffs
-          commit_message = open("commit_message.txt").read().strip()
+          # Read commit subject, description, and file changes
+          commit_subject = open("commit_subject.txt").read().strip()
+          commit_description = open("commit_description.txt").read().strip()
           changed_files = open("changed_files.txt").read().strip()
-          file_changes = open("file_changes.txt").read().strip()
           today = datetime.date.today().strftime("%B %d, %Y")
           
           # Generate version number only (AI will create the title)
@@ -66,42 +56,44 @@ jobs:
           api_key = os.environ["GEMINI_API_KEY"]
           url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={api_key}"
           
-          print(f"🎯 Commit: {commit_message}")
+          print(f"🎯 Commit Subject: {commit_subject}")
+          print(f"📝 Commit Description: {commit_description}")
           print(f"📁 Changed files: {changed_files}")
-          print(f"📄 Optimized changes preview: {file_changes[:300]}...")
+
+          # Build the prompt based on available commit information
+          commit_info = f"Subject: {commit_subject}"
+          if commit_description:
+              commit_info += f"\nDescription: {commit_description}"
 
           prompt = f"""
-          Create an update card for an unblocked games website by analyzing the code changes.
+          Create an engaging update for an unblocked games website.
 
-          COMMIT MESSAGE: "{commit_message}"
-          CHANGED FILES: {changed_files}
+          COMMIT INFORMATION:
+          {commit_info}
 
-          KEY CODE CHANGES:
-          {file_changes}
+          FILES CHANGED:
+          {changed_files}
 
-          Analyze these changes and create:
-          1. A RELEVANT TITLE that summarizes the changes
-          2. ONE accurate description that explains what was changed and how it affects users
+          Create:
+          1. A creative, relevant TITLE based on the commit
+          2. ONE descriptive bullet point that summarizes the changes
 
-          Focus on:
-          - Game additions/removals (look for game names)
-          - UI/design changes  
-          - Functionality improvements
-          - Bug fixes
+          Use the commit description to understand what was actually changed.
+          Make it exciting for gamers!
 
-          Return ONLY this HTML structure:
+          Return ONLY this HTML:
 
           <div class="update-item" style="animation-delay: 0.1s;">
             <div class="update-header">
               <div class="version-info">
                 <span class="version-badge">v{version_number}</span>
-                <h3 class="version-title">[AI-GENERATED TITLE]</h3>
+                <h3 class="version-title">[CREATIVE TITLE]</h3>
               </div>
               <span class="version-date">{today}</span>
             </div>
             <div class="update-content">
               <ul class="update-list">
-                <li>[ACCURATE DESCRIPTION WITH EMOJI]</li>
+                <li>[DESCRIPTION BASED ON COMMIT INFO]</li>
               </ul>
             </div>
           </div>
@@ -113,10 +105,10 @@ jobs:
                       {"parts": [{"text": prompt}]}
                   ],
                   "generationConfig": {
-                      "temperature": 0.7,
+                      "temperature": 0.8,
                       "topK": 40,
                       "topP": 0.95,
-                      "maxOutputTokens": 800,
+                      "maxOutputTokens": 600,
                   }
               }
 
@@ -206,4 +198,4 @@ jobs:
           git push
 
       - name: 🧹 Cleanup
-        run: rm -f new_update.html commit_message.txt changed_files.txt file_changes.txt
+        run: rm -f new_update.html commit_subject.txt commit_description.txt changed_files.txt
