@@ -20,27 +20,28 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 📝 Get commit and file changes with diffs
+      - name: 📝 Get commit and optimized file changes
         run: |
           echo "=== TRIGGERING COMMIT ==="
           git log -1 --pretty=%B > commit_message.txt
           echo "=== CHANGED FILES ==="
           git diff --name-only HEAD~1 HEAD > changed_files.txt 2>/dev/null || echo "Initial commit" > changed_files.txt
           
-          # Get the actual diff for each changed file
-          echo "=== FILE DIFFS ===" > file_diffs.txt
+          # Get optimized diffs (only key changes, not full files)
+          echo "=== OPTIMIZED FILE CHANGES ===" > file_changes.txt
           while IFS= read -r file; do
             if [[ -n "$file" && "$file" != "Initial commit" ]]; then
-              echo "--- $file ---" >> file_diffs.txt
-              git diff HEAD~1 HEAD -- "$file" >> file_diffs.txt 2>/dev/null || echo "No diff available" >> file_diffs.txt
-              echo "" >> file_diffs.txt
+              echo "--- $file ---" >> file_changes.txt
+              # Get only the actual changed lines, limit to 20 lines per file
+              git diff --unified=0 HEAD~1 HEAD -- "$file" | grep -E "^(\+|\-)" | head -20 >> file_changes.txt 2>/dev/null || echo "No significant changes detected" >> file_changes.txt
+              echo "" >> file_changes.txt
             fi
           done < changed_files.txt
           
           cat commit_message.txt
           cat changed_files.txt
-          echo "=== DIFFS PREVIEW ==="
-          head -50 file_diffs.txt
+          echo "=== OPTIMIZED CHANGES PREVIEW ==="
+          head -30 file_changes.txt
 
       - name: 🤖 Generate AI update block (Gemini)
         env:
@@ -53,10 +54,10 @@ jobs:
           python3 << 'EOF'
           import requests, os, datetime, random
 
-          # Read commit, file changes, and actual diffs
+          # Read commit, file changes, and optimized diffs
           commit_message = open("commit_message.txt").read().strip()
           changed_files = open("changed_files.txt").read().strip()
-          file_diffs = open("file_diffs.txt").read().strip()
+          file_changes = open("file_changes.txt").read().strip()
           today = datetime.date.today().strftime("%B %d, %Y")
           
           # Generate version number only (AI will create the title)
@@ -67,29 +68,26 @@ jobs:
           
           print(f"🎯 Commit: {commit_message}")
           print(f"📁 Changed files: {changed_files}")
-          print(f"📄 File diffs preview: {file_diffs[:500]}...")
+          print(f"📄 Optimized changes preview: {file_changes[:300]}...")
 
           prompt = f"""
-          Create an update card for an unblocked games website by analyzing the actual code changes.
+          Create an update card for an unblocked games website by analyzing the code changes.
 
           COMMIT MESSAGE: "{commit_message}"
           CHANGED FILES: {changed_files}
 
-          ACTUAL CODE CHANGES (diff format):
-          {file_diffs}
+          KEY CODE CHANGES:
+          {file_changes}
 
-          Analyze the code changes and create:
+          Analyze these changes and create:
           1. A RELEVANT TITLE that summarizes the changes
-          2. ONE accurate description that explains:
-             - What specific changes were made in the code
-             - Which games/features were added, removed, or modified
-             - How this affects the user experience
+          2. ONE accurate description that explains what was changed and how it affects users
 
-          Be specific about:
-          - Game names if games were added/removed
-          - UI/UX changes if CSS/HTML was modified
-          - Performance improvements if technical changes were made
-          - New features if functionality was added
+          Focus on:
+          - Game additions/removals (look for game names)
+          - UI/design changes  
+          - Functionality improvements
+          - Bug fixes
 
           Return ONLY this HTML structure:
 
@@ -97,18 +95,16 @@ jobs:
             <div class="update-header">
               <div class="version-info">
                 <span class="version-badge">v{version_number}</span>
-                <h3 class="version-title">[AI-GENERATED RELEVANT TITLE]</h3>
+                <h3 class="version-title">[AI-GENERATED TITLE]</h3>
               </div>
               <span class="version-date">{today}</span>
             </div>
             <div class="update-content">
               <ul class="update-list">
-                <li>[AI-GENERATED DESCRIPTION WITH EMOJI BASED ON ACTUAL CODE CHANGES]</li>
+                <li>[ACCURATE DESCRIPTION WITH EMOJI]</li>
               </ul>
             </div>
           </div>
-
-          Make it accurate and specific to the code changes!
           """
 
           try:
@@ -120,7 +116,7 @@ jobs:
                       "temperature": 0.7,
                       "topK": 40,
                       "topP": 0.95,
-                      "maxOutputTokens": 1200,
+                      "maxOutputTokens": 800,
                   }
               }
 
@@ -210,4 +206,4 @@ jobs:
           git push
 
       - name: 🧹 Cleanup
-        run: rm -f new_update.html commit_message.txt changed_files.txt file_diffs.txt
+        run: rm -f new_update.html commit_message.txt changed_files.txt file_changes.txt
