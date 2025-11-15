@@ -2,38 +2,39 @@ name: Auto Update Log
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
 
 jobs:
-  generate-log:
+  generate-update:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
       - name: Get latest commit message
         run: |
-          git log -1 --pretty=format:"%s%n%n%b" > commit.txt
+          echo "$(git log -1 --pretty=%B)" > commit.txt
 
-      - name: Install Python requests
-        run: pip install requests
-
-      - name: Generate update with Gemini
+      - name: Generate AI update log with Gemini
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           python3 << 'EOF'
-          import requests, json, datetime
+          import requests, json, datetime, os
 
-          commit_text = open("commit.txt").read()
+          # Read commit message
+          commit_text = open("commit.txt").read().strip()
           today = datetime.date.today()
 
-          url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${{GEMINI_API_KEY}}"
+          api_key = os.environ["GEMINI_API_KEY"]
+          url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={api_key}"
 
           prompt = f"""
           Create an HTML update card for my unblocked games website.
 
-          MATCH THIS FORMAT EXACTLY:
+          FORMAT EXACTLY LIKE THIS:
 
           <div class="update-item">
               <div class="update-header">
@@ -45,34 +46,38 @@ jobs:
               </div>
               <div class="update-content">
                   <ul class="update-list">
-                      <li>Summarize this commit: {commit_text}</li>
+                      <li>Describe update based on commit: {commit_text}</li>
                   </ul>
               </div>
           </div>
 
-          ONLY output the HTML block.
+          ONLY output the HTML block. No extra text.
           """
 
           payload = {"contents":[{"parts":[{"text":prompt}]}]}
+
           res = requests.post(url, json=payload)
+
           text = res.json()["candidates"][0]["content"]["parts"][0]["text"]
 
-          open("update.txt", "w").write(text)
+          # Save HTML output
+          open("update.html", "w").write(text.strip())
           EOF
 
       - name: Insert update into ul.html
         run: |
-          UPDATE_CONTENT="$(cat update.txt)"
-          awk -v update="$UPDATE_CONTENT" '
-            /<!-- UPDATE_LOG_START -->/ {print; print update; next}
-            {print}
-          ' ul.html > ul_updated.html
-          mv ul_updated.html ul.html
+          # Insert the update at the top of the update log container
 
-      - name: Commit updated ul.html
+          UPDATE_CONTENT=$(cat update.html)
+
+          # Replace placeholder <!-- AUTO-UPDATE-HERE -->
+          sed -i "s|<!-- AUTO-UPDATE-HERE -->|${UPDATE_CONTENT}\n\n<!-- AUTO-UPDATE-HERE -->|" ul.html
+
+      - name: Commit and push changes
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
+
           git add ul.html
-          git commit -m "Auto update log"
+          git commit -m "Automated update log entry"
           git push
