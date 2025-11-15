@@ -20,40 +20,55 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
+          sudo apt-get update
+          sudo apt-get install -y python3 python3-pip
+          pip3 install requests
+
           python3 << 'EOF'
-          import requests, json, datetime, os
+          import requests, os, datetime, json
 
           commit_text = open("commit.txt").read().strip()
-          today = datetime.date.today()
+          today = datetime.date.today().strftime("%Y-%m-%d")
 
           api_key = os.environ["GEMINI_API_KEY"]
-          url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={api_key}"
+          url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={api_key}"
 
           prompt = f"""
-          Create an HTML update card matching this format:
+          Create ONLY an HTML update card. No explanations. Use exactly this structure:
 
-          <div class="update-item">
-              <div class="update-header">
-                  <div class="version-info">
-                      <span class="version-badge">AUTO</span>
-                      <h3 class="version-title">Auto Update</h3>
-                  </div>
-                  <span class="version-date">{today}</span>
+          <div class='update-item'>
+            <div class='update-header'>
+              <div class='version-info'>
+                <span class='version-badge'>AUTO</span>
+                <h3 class='version-title'>Auto Update</h3>
               </div>
-              <div class="update-content">
-                  <ul class="update-list">
-                      <li>Describe what changed based on commit: {commit_text}</li>
-                  </ul>
-              </div>
+              <span class='version-date'>{today}</span>
+            </div>
+            <div class='update-content'>
+              <ul class='update-list'>
+                <li>Describe what changed based on commit: {commit_text}</li>
+              </ul>
+            </div>
           </div>
-
-          Output ONLY the HTML. No commentary.
           """
 
-          payload = {"contents":[{"parts":[{"text":prompt}]}]}
+          payload = {
+              "contents": [
+                  {"parts": [{"text": prompt}]}
+              ]
+          }
 
-          response = requests.post(url, json=payload)
-          text = response.json()["candidates"][0]["content"]["parts"][0]["text"]
+          r = requests.post(url, json=payload)
+
+          if r.status_code != 200:
+              print("GEMINI API ERROR:", r.text)
+              exit(1)
+
+          try:
+              text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
+          except Exception as e:
+              print("JSON PARSE ERROR:", r.text)
+              raise e
 
           open("new_update.html", "w").write(text.strip())
           EOF
@@ -69,10 +84,10 @@ jobs:
 
           mv ul_new.html ul.html
 
-      - name: Commit and push updates
+      - name: Commit and push
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
           git add ul.html
-          git commit -m "Automated AI update log entry"
+          git commit -m "Auto AI Update Log"
           git push
