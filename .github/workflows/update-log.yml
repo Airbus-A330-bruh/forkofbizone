@@ -14,17 +14,15 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Get latest commit message
-        run: |
-          echo "$(git log -1 --pretty=%B)" > commit.txt
+        run: echo "$(git log -1 --pretty=%B)" > commit.txt
 
-      - name: Generate AI update log with Gemini
+      - name: Generate AI update block (Gemini)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           python3 << 'EOF'
           import requests, json, datetime, os
 
-          # Read commit message
           commit_text = open("commit.txt").read().strip()
           today = datetime.date.today()
 
@@ -32,9 +30,7 @@ jobs:
           url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={api_key}"
 
           prompt = f"""
-          Create an HTML update card for my unblocked games website.
-
-          FORMAT EXACTLY LIKE THIS:
+          Create an HTML update card matching this format:
 
           <div class="update-item">
               <div class="update-header">
@@ -46,38 +42,37 @@ jobs:
               </div>
               <div class="update-content">
                   <ul class="update-list">
-                      <li>Describe update based on commit: {commit_text}</li>
+                      <li>Describe what changed based on commit: {commit_text}</li>
                   </ul>
               </div>
           </div>
 
-          ONLY output the HTML block. No extra text.
+          Output ONLY the HTML. No commentary.
           """
 
           payload = {"contents":[{"parts":[{"text":prompt}]}]}
 
-          res = requests.post(url, json=payload)
+          response = requests.post(url, json=payload)
+          text = response.json()["candidates"][0]["content"]["parts"][0]["text"]
 
-          text = res.json()["candidates"][0]["content"]["parts"][0]["text"]
-
-          # Save HTML output
-          open("update.html", "w").write(text.strip())
+          open("new_update.html", "w").write(text.strip())
           EOF
 
       - name: Insert update into ul.html
         run: |
-          # Insert the update at the top of the update log container
+          NEW_UPDATE=$(cat new_update.html)
 
-          UPDATE_CONTENT=$(cat update.html)
+          awk -v block="$NEW_UPDATE" '
+            /<!-- UPDATE_LOG_START -->/ {print; print block; next}
+            {print}
+          ' ul.html > ul_new.html
 
-          # Replace placeholder <!-- AUTO-UPDATE-HERE -->
-          sed -i "s|<!-- AUTO-UPDATE-HERE -->|${UPDATE_CONTENT}\n\n<!-- AUTO-UPDATE-HERE -->|" ul.html
+          mv ul_new.html ul.html
 
-      - name: Commit and push changes
+      - name: Commit and push updates
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
-
           git add ul.html
-          git commit -m "Automated update log entry"
+          git commit -m "Automated AI update log entry"
           git push
