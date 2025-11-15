@@ -38,7 +38,7 @@ jobs:
           pip3 install requests
 
           python3 << 'EOF'
-          import requests, os, datetime, random, json, subprocess
+          import requests, os, datetime, random
 
           # Read commit and file changes
           commit_message = open("commit_message.txt").read().strip()
@@ -68,11 +68,9 @@ jobs:
           2. What specific change was made inside that file
           3. How this affects the website when users visit it
 
-          Be specific and descriptive. Examples:
-          - If g.html was modified to add a new game: "🎮 Added 'Cookie Clicker' to the arcade games section in g.html - players can now enjoy this addictive clicking game"
-          - If a game was removed: "🗑️ Removed 'Flappy Bird' from the games list to make space for newer titles"
-          - If CSS was updated: "🎨 Updated styling in style.css to improve mobile responsiveness - games now display better on phones and tablets"
-          - If proxies were updated: "🔧 Enhanced proxy configuration to improve game loading speeds and access reliability"
+          Be specific and descriptive. If it's a game file, mention the actual game name and what it does.
+          If it's a style file, describe the visual changes.
+          If it's a proxy file, explain the performance improvements.
 
           Return ONLY the HTML code with no explanations. Use this exact structure:
 
@@ -98,7 +96,7 @@ jobs:
                       {"parts": [{"text": prompt}]}
                   ],
                   "generationConfig": {
-                      "temperature": 0.8,
+                      "temperature": 0.9,
                       "topK": 40,
                       "topP": 0.95,
                       "maxOutputTokens": 500,
@@ -130,41 +128,8 @@ jobs:
               
           except Exception as e:
               print(f"❌ AI generation failed: {e}")
-              # Create detailed fallback based on file changes
-              print("🔄 Creating detailed fallback...")
-              
-              # Analyze what type of file was changed
-              if 'g.html' in changed_files or 'game' in changed_files.lower():
-                  description = f"🎮 Updated games collection in {changed_files} - modified game listings and availability for players"
-              elif 'proxy' in changed_files.lower():
-                  description = f"🔧 Enhanced proxy system in {changed_files} - improved game access and loading reliability"
-              elif 'style' in changed_files.lower() or 'css' in changed_files:
-                  description = f"🎨 Updated website styling in {changed_files} - improved visual design and user interface"
-              elif 'index' in changed_files.lower() or 'main' in changed_files.lower():
-                  description = f"🏠 Modified main page layout in {changed_files} - enhanced navigation and user experience"
-              else:
-                  description = f"🔧 Updated {changed_files} - made backend improvements for better website performance and functionality"
-              
-              fallback_html = f'''
-              <div class="update-item" style="animation-delay: 0.1s;">
-                <div class="update-header">
-                  <div class="version-info">
-                    <span class="version-badge">v{version_number}</span>
-                    <h3 class="version-title">{version_name}</h3>
-                  </div>
-                  <span class="version-date">{today}</span>
-                </div>
-                <div class="update-content">
-                  <ul class="update-list">
-                    <li>{description}</li>
-                  </ul>
-                </div>
-              </div>
-              '''
-              
-              with open("new_update.html", "w") as f:
-                  f.write(fallback_html.strip())
-              print("📁 Detailed fallback saved")
+              # NO FALLBACK - JUST FAIL
+              raise Exception("AI generation failed - no fallback template used")
 
           EOF
 
