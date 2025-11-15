@@ -1,14 +1,218 @@
-<div class="update-item" style="animation-delay: 0.1s;">
-  <div class="update-header">
-    <div class="version-info">
-      <span class="version-badge">v1.17.2</span>
-      <h3 class="version-title">Velocity Update</h3>
-    </div>
-    <span class="version-date">December 19, 2024</span>
-  </div>
-  <div class="update-content">
-    <ul class="update-list">
-      <li>🔧 Enhanced proxy configuration in proxies.html - improved game loading speeds by 40% and added backup connection methods</li>
-    </ul>
-  </div>
-</div>
+name: 🤖 AI Auto Update Log
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate-update:
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, 'Auto AI Update Log')"
+
+    steps:
+      - name: 🚀 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 📝 Get commit and file changes
+        run: |
+          echo "=== TRIGGERING COMMIT ==="
+          git log -1 --pretty=%B > commit_message.txt
+          echo "=== CHANGED FILES ==="
+          git diff --name-only HEAD~1 HEAD > changed_files.txt 2>/dev/null || echo "Initial commit" > changed_files.txt
+          cat commit_message.txt
+          cat changed_files.txt
+
+      - name: 🤖 Generate AI update block (Gemini)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3 python3-pip
+          pip3 install requests
+
+          python3 << 'EOF'
+          import requests, os, datetime, random, json, subprocess
+
+          # Read commit and file changes
+          commit_message = open("commit_message.txt").read().strip()
+          changed_files = open("changed_files.txt").read().strip()
+          today = datetime.date.today().strftime("%B %d, %Y")
+          
+          version_names = ["Quantum", "Phoenix", "Nebula", "Velocity", "Horizon", "Infinity", "Cosmic", "Synergy"]
+          version_adjectives = ["Update", "Release", "Launch", "Drop", "Upgrade", "Evolution"]
+          
+          version_name = f"{random.choice(version_names)} {random.choice(version_adjectives)}"
+          version_number = f"1.{random.randint(1,20)}.{random.randint(0,9)}"
+
+          api_key = os.environ["GEMINI_API_KEY"]
+          url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent?key={api_key}"
+          
+          print(f"🎯 Commit: {commit_message}")
+          print(f"📁 Changed files: {changed_files}")
+
+          prompt = f"""
+          Create a SINGLE detailed update description for an unblocked games website.
+
+          Commit: "{commit_message}"
+          Changed files: {changed_files}
+
+          Create ONE comprehensive bullet point that explains:
+          1. What file was changed
+          2. What specific change was made inside that file
+          3. How this affects the website when users visit it
+
+          Be specific and descriptive. Examples:
+          - If g.html was modified to add a new game: "🎮 Added 'Cookie Clicker' to the arcade games section in g.html - players can now enjoy this addictive clicking game"
+          - If a game was removed: "🗑️ Removed 'Flappy Bird' from the games list to make space for newer titles"
+          - If CSS was updated: "🎨 Updated styling in style.css to improve mobile responsiveness - games now display better on phones and tablets"
+          - If proxies were updated: "🔧 Enhanced proxy configuration to improve game loading speeds and access reliability"
+
+          Return ONLY the HTML code with no explanations. Use this exact structure:
+
+          <div class="update-item" style="animation-delay: 0.1s;">
+            <div class="update-header">
+              <div class="version-info">
+                <span class="version-badge">v{version_number}</span>
+                <h3 class="version-title">{version_name}</h3>
+              </div>
+              <span class="version-date">{today}</span>
+            </div>
+            <div class="update-content">
+              <ul class="update-list">
+                <li>[Your single detailed description with emoji]</li>
+              </ul>
+            </div>
+          </div>
+          """
+
+          try:
+              payload = {
+                  "contents": [
+                      {"parts": [{"text": prompt}]}
+                  ],
+                  "generationConfig": {
+                      "temperature": 0.8,
+                      "topK": 40,
+                      "topP": 0.95,
+                      "maxOutputTokens": 500,
+                  }
+              }
+
+              print("🚀 Sending request to Gemini API...")
+              response = requests.post(url, json=payload, timeout=30)
+              print(f"📡 Response status: {response.status_code}")
+              
+              if response.status_code != 200:
+                  print(f"❌ API Error {response.status_code}: {response.text}")
+                  raise Exception(f"API returned {response.status_code}")
+              
+              result = response.json()
+              ai_text = result["candidates"][0]["content"]["parts"][0]["text"]
+              
+              # Clean the response
+              cleaned_text = ai_text.strip()
+              cleaned_text = cleaned_text.replace('```html', '').replace('```', '').strip()
+              
+              # Save the AI-generated content
+              with open("new_update.html", "w") as f:
+                  f.write(cleaned_text)
+                  
+              print("✅ AI-generated content saved!")
+              print("📝 Generated content:")
+              print(cleaned_text)
+              
+          except Exception as e:
+              print(f"❌ AI generation failed: {e}")
+              # Create detailed fallback based on file changes
+              print("🔄 Creating detailed fallback...")
+              
+              # Analyze what type of file was changed
+              if 'g.html' in changed_files or 'game' in changed_files.lower():
+                  description = f"🎮 Updated games collection in {changed_files} - modified game listings and availability for players"
+              elif 'proxy' in changed_files.lower():
+                  description = f"🔧 Enhanced proxy system in {changed_files} - improved game access and loading reliability"
+              elif 'style' in changed_files.lower() or 'css' in changed_files:
+                  description = f"🎨 Updated website styling in {changed_files} - improved visual design and user interface"
+              elif 'index' in changed_files.lower() or 'main' in changed_files.lower():
+                  description = f"🏠 Modified main page layout in {changed_files} - enhanced navigation and user experience"
+              else:
+                  description = f"🔧 Updated {changed_files} - made backend improvements for better website performance and functionality"
+              
+              fallback_html = f'''
+              <div class="update-item" style="animation-delay: 0.1s;">
+                <div class="update-header">
+                  <div class="version-info">
+                    <span class="version-badge">v{version_number}</span>
+                    <h3 class="version-title">{version_name}</h3>
+                  </div>
+                  <span class="version-date">{today}</span>
+                </div>
+                <div class="update-content">
+                  <ul class="update-list">
+                    <li>{description}</li>
+                  </ul>
+                </div>
+              </div>
+              '''
+              
+              with open("new_update.html", "w") as f:
+                  f.write(fallback_html.strip())
+              print("📁 Detailed fallback saved")
+
+          EOF
+
+      - name: 📋 Safe HTML insertion using Python
+        run: |
+          python3 << 'EOF'
+          import re
+          
+          # Read the generated update
+          with open("new_update.html", "r") as f:
+              new_update = f.read().strip()
+          
+          # Read the current ul.html
+          with open("ul.html", "r") as f:
+              content = f.read()
+          
+          # Remove existing content between the markers
+          pattern = r'(<!-- UPDATE_LOG_START -->\s*).*?(\s*<!-- UPDATE_LOG_END -->)'
+          replacement = r'\1' + new_update + r'\2'
+          
+          new_content = re.sub(pattern, replacement, content, flags=re.DOTALL)
+          
+          # Write the updated content back
+          with open("ul.html", "w") as f:
+              f.write(new_content)
+          
+          print("✅ Update successfully inserted into ul.html")
+          EOF
+
+      - name: 🔍 Verify the update was inserted
+        run: |
+          echo "=== VERIFYING INSERTION ==="
+          if grep -q "update-item" ul.html; then
+            echo "✅ Update card found in ul.html"
+            echo "=== FULL INSERTED CONTENT ==="
+            sed -n '/<!-- UPDATE_LOG_START -->/,/<!-- UPDATE_LOG_END -->/p' ul.html
+          else
+            echo "❌ Error: Update card not found in HTML"
+            exit 1
+          fi
+
+      - name: 📤 Commit and push changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add ul.html
+          git diff --staged --quiet || git commit -m "🤖 AI Auto Update: $(date +'%Y-%m-%d %H:%M')"
+          git push
+
+      - name: 🧹 Cleanup
+        run: rm -f new_update.html commit_message.txt changed_files.txt
