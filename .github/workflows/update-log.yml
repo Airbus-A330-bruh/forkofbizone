@@ -22,21 +22,23 @@ jobs:
 
       - name: 📝 Get recent commits context
         run: |
-          # Get the actual commit that triggered this workflow
           echo "=== TRIGGERING COMMIT ==="
           git log -1 --pretty=%B > commit_message.txt
           cat commit_message.txt
 
-      - name: 🤖 Generate AI update block (Gemini)
+      - name: 🤖 Generate AI update block (OpenAI)
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           sudo apt-get update
           sudo apt-get install -y python3 python3-pip
-          pip3 install requests
+          pip3 install openai
 
           python3 << 'EOF'
-          import requests, os, datetime, random
+          import openai
+          import os
+          import datetime
+          import random
 
           # Read the actual commit message that triggered this
           commit_message = open("commit_message.txt").read().strip()
@@ -48,13 +50,7 @@ jobs:
           version_name = f"{random.choice(version_names)} {random.choice(version_adjectives)}"
           version_number = f"1.{random.randint(1,20)}.{random.randint(0,9)}"
 
-          api_key = os.environ["GEMINI_API_KEY"]
-          
-          # Use the correct Gemini API endpoint
-          url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key={api_key}"
-          
-          print(f"🎯 Using commit message: {commit_message}")
-          print(f"🔗 API URL: {url.split('?')[0]}")  # Don't print the key
+          client = openai.OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
           prompt = f"""
           Create an engaging HTML update card for an unblocked games website based on this git commit: "{commit_message}"
@@ -81,28 +77,17 @@ jobs:
           """
 
           try:
-              payload = {
-                  "contents": [
-                      {"parts": [{"text": prompt}]}
+              response = client.chat.completions.create(
+                  model="gpt-3.5-turbo",
+                  messages=[
+                      {"role": "system", "content": "You are a helpful assistant that creates engaging HTML update cards for gaming websites."},
+                      {"role": "user", "content": prompt}
                   ],
-                  "generationConfig": {
-                      "temperature": 0.9,
-                      "topK": 40,
-                      "topP": 0.95,
-                      "maxOutputTokens": 500,
-                  }
-              }
-
-              print("🚀 Sending request to Gemini API...")
-              response = requests.post(url, json=payload, timeout=30)
-              print(f"📡 Response status: {response.status_code}")
+                  max_tokens=500,
+                  temperature=0.8
+              )
               
-              if response.status_code != 200:
-                  print(f"❌ API Error {response.status_code}: {response.text}")
-                  raise Exception(f"API returned {response.status_code}")
-              
-              result = response.json()
-              ai_text = result["candidates"][0]["content"]["parts"][0]["text"]
+              ai_text = response.choices[0].message.content
               
               # Clean the response
               cleaned_text = ai_text.strip()
@@ -118,8 +103,7 @@ jobs:
               
           except Exception as e:
               print(f"❌ AI generation failed: {e}")
-              # FAIL THE WORKFLOW INSTEAD OF USING FALLBACK
-              raise Exception("AI generation failed - no fallback template used")
+              raise Exception("AI generation failed")
 
           EOF
 
