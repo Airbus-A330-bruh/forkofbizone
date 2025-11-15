@@ -45,10 +45,7 @@ jobs:
           changed_files = open("changed_files.txt").read().strip()
           today = datetime.date.today().strftime("%B %d, %Y")
           
-          version_names = ["Quantum", "Phoenix", "Nebula", "Velocity", "Horizon", "Infinity", "Cosmic", "Synergy"]
-          version_adjectives = ["Update", "Release", "Launch", "Drop", "Upgrade", "Evolution"]
-          
-          version_name = f"{random.choice(version_names)} {random.choice(version_adjectives)}"
+          # Generate version number only (AI will create the title)
           version_number = f"1.{random.randint(1,20)}.{random.randint(0,9)}"
 
           api_key = os.environ["GEMINI_API_KEY"]
@@ -58,32 +55,35 @@ jobs:
           print(f"📁 Changed files: {changed_files}")
 
           prompt = f"""
-          Create update for unblocked games website.
+          Create an update card for an unblocked games website.
 
           Commit: "{commit_message}"
-          Files: {changed_files}
+          Changed files: {changed_files}
 
-          Create ONE bullet point explaining:
-          - File changed
-          - Specific change made  
+          Create a RELEVANT TITLE based on the changes (e.g., "Game Collection Update", "Performance Boost", "New Features")
+          And ONE descriptive bullet point explaining:
+          - What file was changed
+          - What specific change was made  
           - How it affects users
 
-          Return ONLY this HTML:
+          Return ONLY this HTML structure:
 
           <div class="update-item" style="animation-delay: 0.1s;">
             <div class="update-header">
               <div class="version-info">
                 <span class="version-badge">v{version_number}</span>
-                <h3 class="version-title">{version_name}</h3>
+                <h3 class="version-title">[AI-GENERATED RELEVANT TITLE]</h3>
               </div>
               <span class="version-date">{today}</span>
             </div>
             <div class="update-content">
               <ul class="update-list">
-                <li>[Description with emoji]</li>
+                <li>[AI-GENERATED DESCRIPTION WITH EMOJI]</li>
               </ul>
             </div>
           </div>
+
+          Make the title creative and relevant to the changes!
           """
 
           try:
@@ -92,7 +92,7 @@ jobs:
                       {"parts": [{"text": prompt}]}
                   ],
                   "generationConfig": {
-                      "temperature": 0.8,
+                      "temperature": 0.9,
                       "topK": 40,
                       "topP": 0.95,
                       "maxOutputTokens": 1000,
