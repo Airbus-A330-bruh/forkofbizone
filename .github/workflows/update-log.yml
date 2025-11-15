@@ -1,34 +1,56 @@
-name: Auto Update Log
+name: 🤖 AI Auto Update Log
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch: # Allow manual triggers
 
 jobs:
   generate-update:
     runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, 'Auto AI Update Log')"
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - name: 🚀 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0 # Get full history for better AI context
 
-      - name: Get latest commit message
-        run: echo "$(git log -1 --pretty=%B)" > commit.txt
+      - name: 📝 Get recent commits context
+        run: |
+          # Get multiple recent commits for better context
+          git log -5 --pretty=format:"%h - %s (%an)" > recent_commits.txt
+          echo "Recent commits:"
+          cat recent_commits.txt
+          
+          # Get changed files for context
+          git diff --name-only HEAD~1 HEAD > changed_files.txt 2>/dev/null || echo "Initial commit" > changed_files.txt
 
-      - name: Generate AI update block (Gemini)
+      - name: 🤖 Generate AI update block (Gemini)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3 python3-pip
+          sudo apt-get install -y python3 python3-pip jq
           pip3 install requests
 
           python3 << 'EOF'
-          import requests, os, datetime, json
+          import requests, os, datetime, json, subprocess
 
-          commit_text = open("commit.txt").read().strip()
-          today = datetime.date.today().strftime("%Y-%m-%d")
+          # Get commit context
+          commit_text = open("recent_commits.txt").read().strip()
+          changed_files = open("changed_files.txt").read().strip()
+          today = datetime.date.today().strftime("%B %d, %Y")
+          
+          # Try to get version from package.json or generate incremental version
+          try:
+              with open('package.json') as f:
+                  package_data = json.load(f)
+                  version = package_data.get('version', '1.0.0')
+          except:
+              version = "1.0.0"
 
           api_key = os.environ["GEMINI_API_KEY"]
           url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={api_key}"
@@ -39,55 +61,118 @@ jobs:
           <div class='update-item'>
             <div class='update-header'>
               <div class='version-info'>
-                <span class='version-badge'>AUTO</span>
-                <h3 class='version-title'>Auto Update</h3>
+                <span class='version-badge'>v{version}</span>
+                <h3 class='version-title'>AI Auto Update</h3>
               </div>
               <span class='version-date'>{today}</span>
             </div>
             <div class='update-content'>
               <ul class='update-list'>
-                <li>Describe what changed based on commit: {commit_text}</li>
+                <!-- Generate 3-5 bullet points based on these recent commits: {commit_text} -->
+                <!-- Focus on: new games added, bug fixes, UI improvements, performance updates -->
+                <!-- Use gaming-related emojis like 🎮, 🚀, 🐛, ✨, 🎯, 📱 -->
+                <!-- Make it exciting for gamers! -->
+                <!-- If files changed include: {changed_files} consider what was modified -->
               </ul>
             </div>
           </div>
+
+          Important: Return ONLY the HTML, no markdown, no explanations.
           """
 
           payload = {
               "contents": [
                   {"parts": [{"text": prompt}]}
-              ]
+              ],
+              "generationConfig": {
+                  "temperature": 0.7,
+                  "topK": 40,
+                  "topP": 0.95,
+                  "maxOutputTokens": 1024,
+              }
           }
 
-          r = requests.post(url, json=payload)
-
-          if r.status_code != 200:
-              print("GEMINI API ERROR:", r.text)
-              exit(1)
-
           try:
+              r = requests.post(url, json=payload, timeout=30)
+              r.raise_for_status()
+              
               text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
+              # Clean up the response
+              text = text.strip().replace('```html', '').replace('```', '').strip()
+              
           except Exception as e:
-              print("JSON PARSE ERROR:", r.text)
-              raise e
+              print(f"API Error: {e}")
+              # Fallback update card
+              text = f'''
+              <div class='update-item'>
+                <div class='update-header'>
+                  <div class='version-info'>
+                    <span class='version-badge'>v{version}</span>
+                    <h3 class='version-title'>Auto Update</h3>
+                  </div>
+                  <span class='version-date'>{today}</span>
+                </div>
+                <div class='update-content'>
+                  <ul class='update-list'>
+                    <li>🚀 Automatic update based on recent changes</li>
+                    <li>🔧 Improvements and bug fixes</li>
+                    <li>🎮 Enhanced gaming experience</li>
+                  </ul>
+                </div>
+              </div>
+              '''
 
-          open("new_update.html", "w").write(text.strip())
+          open("new_update.html", "w").write(text)
+          print("Generated update card:")
+          print(text)
           EOF
 
-      - name: Insert update into ul.html
+      - name: 📊 Create backup and insert update
         run: |
+          # Create backup
+          cp ul.html ul_backup.html
+          
+          # Insert new update at the top
           NEW_UPDATE=$(cat new_update.html)
+          
+          # Use a more robust insertion method
+          if grep -q "<!-- UPDATE_LOG_START -->" ul.html; then
+              # Insert after UPDATE_LOG_START comment
+              awk -v update="$NEW_UPDATE" '
+                /<!-- UPDATE_LOG_START -->/ {print; print update; next}
+                1
+              ' ul.html > ul_temp.html
+          else
+              # Create structure if it doesn't exist
+              echo "<!-- UPDATE_LOG_START -->" > ul_temp.html
+              echo "$NEW_UPDATE" >> ul_temp.html
+              echo "<!-- UPDATE_LOG_END -->" >> ul_temp.html
+              cat ul.html >> ul_temp.html
+          fi
+          
+          mv ul_temp.html ul.html
+          echo "✅ Update inserted successfully"
 
-          awk -v block="$NEW_UPDATE" '
-            /<!-- UPDATE_LOG_START -->/ {print; print block; next}
-            {print}
-          ' ul.html > ul_new.html
-
-          mv ul_new.html ul.html
-
-      - name: Commit and push
+      - name: 🎯 Validate HTML
         run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "github-actions@github.com"
+          # Basic validation that the file was modified
+          if ! grep -q "update-item" ul.html; then
+            echo "❌ Error: Update not found in ul.html"
+            exit 1
+          fi
+          echo "✅ HTML validation passed"
+
+      - name: 📤 Commit and push changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add ul.html
-          git commit -m "Auto AI Update Log"
+          git diff --staged --quiet || git commit -m "🤖 AI Auto Update: $(date +%Y-%m-%d)"
           git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🧹 Cleanup
+        if: always()
+        run: |
+          rm -f new_update.html recent_commits.txt changed_files.txt commit.txt ul_backup.html
