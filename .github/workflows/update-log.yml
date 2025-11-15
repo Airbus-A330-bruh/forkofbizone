@@ -36,6 +36,9 @@ jobs:
 
       - name: Build Gemini prompt
         id: prompt
+        env:
+          COMMIT_MSG: ${{ steps.commitmsg.outputs.msg }}
+          GIT_DIFF: ${{ steps.diff.outputs.diff }}
         run: |
           VERSION=$(grep -oP 'v\K[0-9]+\.[0-9]+\.[0-9]+' ul.html | head -n 1)
           if [ -z "$VERSION" ]; then VERSION="1.0.0"; fi
@@ -46,8 +49,6 @@ jobs:
 
           {
             echo "text<<EOF"
-            echo "Generate an HTML update block using this template exactly:"
-            echo ""
             echo "<div class=\"update-item\" style=\"--delay: 1\">"
             echo "<span class=\"version\">v${NEW_VERSION}</span>"
             echo "<h3>[TITLE]</h3>"
@@ -55,16 +56,15 @@ jobs:
             echo "</div>"
             echo ""
             echo "Rules:"
-            echo "- Keep the class names EXACTLY the same."
-            echo "- Replace [TITLE] with a short summary of the commit."
-            echo "- Replace [DESCRIPTION] with a simple explanation of the changes."
-            echo "- Do NOT add markdown, bullets, or extra formatting."
+            echo "- Replace [TITLE] with a short summary based on commit + diff."
+            echo "- Replace [DESCRIPTION] with a short paragraph."
+            echo "- No markdown. No bullets. No extra formatting."
             echo ""
             echo "Commit Message:"
-            echo "${{ steps.commitmsg.outputs.msg }}"
+            echo "$COMMIT_MSG"
             echo ""
             echo "Git Diff:"
-            echo "${{ steps.diff.outputs.diff }}"
+            echo "$GIT_DIFF"
             echo ""
             echo "EOF"
           } >> $GITHUB_OUTPUT
@@ -73,8 +73,9 @@ jobs:
         id: gemini
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PROMPT_TEXT: ${{ steps.prompt.outputs.text }}
         run: |
-          JSON=$(jq -n --arg text "${{ steps.prompt.outputs.text }}" \
+          JSON=$(jq -n --arg text "$PROMPT_TEXT" \
             '{ contents: [ { parts: [ { text: $text } ] } ] }')
 
           RESPONSE=$(curl -s -X POST \
@@ -91,10 +92,12 @@ jobs:
           } >> $GITHUB_OUTPUT
 
       - name: Insert update block into ul.html
+        env:
+          GENERATED_UPDATE: ${{ steps.gemini.outputs.result }}
         run: |
           TMPFILE=$(mktemp)
 
-          awk -v insert="${{ steps.gemini.outputs.result }}" '
+          awk -v insert="$GENERATED_UPDATE" '
             /<h2 class="section-title">Latest Updates<\/h2>/ {
               print;
               print insert "\n";
