@@ -35,7 +35,7 @@ jobs:
           pip3 install requests
 
           python3 << 'EOF'
-          import requests, os, datetime, random
+          import requests, os, datetime, random, json
 
           # Read the actual commit message that triggered this
           commit_message = open("commit_message.txt").read().strip()
@@ -50,11 +50,9 @@ jobs:
           api_key = os.environ["GEMINI_API_KEY"]
           
           # Use the CORRECT Gemini model that actually exists
-          # gemini-1.5-pro is the correct model name for the latest version
           url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent?key={api_key}"
           
           print(f"🎯 Using commit message: {commit_message}")
-          print(f"🔗 Using Gemini model: gemini-1.5-pro")
 
           prompt = f"""
           Create an engaging HTML update card for an unblocked games website based on this git commit: "{commit_message}"
@@ -99,14 +97,7 @@ jobs:
               
               if response.status_code != 200:
                   print(f"❌ API Error {response.status_code}: {response.text}")
-                  # Try one more model as fallback
-                  print("🔄 Trying gemini-pro model...")
-                  url_fallback = f"https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={api_key}"
-                  response = requests.post(url_fallback, json=payload, timeout=30)
-                  print(f"📡 Fallback response status: {response.status_code}")
-                  
-                  if response.status_code != 200:
-                      raise Exception(f"Both models failed. Last error: {response.text}")
+                  raise Exception(f"API returned {response.status_code}")
               
               result = response.json()
               ai_text = result["candidates"][0]["content"]["parts"][0]["text"]
@@ -115,17 +106,11 @@ jobs:
               cleaned_text = ai_text.strip()
               cleaned_text = cleaned_text.replace('```html', '').replace('```', '').strip()
               
-              # Validate we got proper HTML
-              if not cleaned_text.startswith('<div class="update-item"'):
-                  print("⚠️ AI response doesn't start with expected HTML, but saving anyway")
-              
               # Save the AI-generated content
               with open("new_update.html", "w") as f:
                   f.write(cleaned_text)
                   
               print("✅ AI-generated content saved!")
-              print("📝 Generated content:")
-              print(cleaned_text)
               
           except Exception as e:
               print(f"❌ AI generation failed: {e}")
@@ -186,18 +171,53 @@ jobs:
 
           EOF
 
-      - name: 📋 Insert update into HTML
+      - name: 📋 Safe HTML insertion using Python
         run: |
-          NEW_UPDATE=$(cat new_update.html)
-          echo "Inserting AI-generated update..."
+          python3 << 'EOF'
+          import re
           
-          # Remove any existing updates between the markers
-          sed -i '/<!-- UPDATE_LOG_START -->/,/<!-- UPDATE_LOG_END -->/{//!d}' ul.html
+          # Read the generated update
+          with open("new_update.html", "r") as f:
+              new_update = f.read().strip()
           
-          # Insert the new AI-generated update
-          sed -i '/<!-- UPDATE_LOG_START -->/a\'$'\n''            '"$NEW_UPDATE" ul.html
+          # Read the current ul.html
+          with open("ul.html", "r") as f:
+              content = f.read()
           
-          echo "✅ Update inserted!"
+          # Remove existing content between the markers
+          pattern = r'(<!-- UPDATE_LOG_START -->\s*).*?(\s*<!-- UPDATE_LOG_END -->)'
+          replacement = r'\1' + new_update + r'\2'
+          
+          new_content = re.sub(pattern, replacement, content, flags=re.DOTALL)
+          
+          # If markers don't exist, create them
+          if new_content == content:
+              marker = "<!-- UPDATE_LOG_START -->\n            " + new_update + "\n            <!-- UPDATE_LOG_END -->"
+              if "<!-- UPDATE_LOG_START -->" not in content:
+                  # Insert after the version-section div
+                  new_content = content.replace(
+                      '<div class="version-section">', 
+                      '<div class="version-section">\n\n            <!-- UPDATE_LOG_START -->\n            ' + new_update + '\n            <!-- UPDATE_LOG_END -->'
+                  )
+          
+          # Write the updated content back
+          with open("ul.html", "w") as f:
+              f.write(new_content)
+          
+          print("✅ Update successfully inserted into ul.html")
+          EOF
+
+      - name: 🔍 Verify the update was inserted
+        run: |
+          echo "=== VERIFYING INSERTION ==="
+          if grep -q "update-item" ul.html; then
+            echo "✅ Update card found in ul.html"
+            echo "=== INSERTED CONTENT PREVIEW ==="
+            grep -A 10 "<!-- UPDATE_LOG_START -->" ul.html | head -15
+          else
+            echo "❌ Error: Update card not found in HTML"
+            exit 1
+          fi
 
       - name: 📤 Commit and push changes
         run: |
