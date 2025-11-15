@@ -20,14 +20,27 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 📝 Get commit and file changes
+      - name: 📝 Get commit and file changes with diffs
         run: |
           echo "=== TRIGGERING COMMIT ==="
           git log -1 --pretty=%B > commit_message.txt
           echo "=== CHANGED FILES ==="
           git diff --name-only HEAD~1 HEAD > changed_files.txt 2>/dev/null || echo "Initial commit" > changed_files.txt
+          
+          # Get the actual diff for each changed file
+          echo "=== FILE DIFFS ===" > file_diffs.txt
+          while IFS= read -r file; do
+            if [[ -n "$file" && "$file" != "Initial commit" ]]; then
+              echo "--- $file ---" >> file_diffs.txt
+              git diff HEAD~1 HEAD -- "$file" >> file_diffs.txt 2>/dev/null || echo "No diff available" >> file_diffs.txt
+              echo "" >> file_diffs.txt
+            fi
+          done < changed_files.txt
+          
           cat commit_message.txt
           cat changed_files.txt
+          echo "=== DIFFS PREVIEW ==="
+          head -50 file_diffs.txt
 
       - name: 🤖 Generate AI update block (Gemini)
         env:
@@ -40,9 +53,10 @@ jobs:
           python3 << 'EOF'
           import requests, os, datetime, random
 
-          # Read commit and file changes
+          # Read commit, file changes, and actual diffs
           commit_message = open("commit_message.txt").read().strip()
           changed_files = open("changed_files.txt").read().strip()
+          file_diffs = open("file_diffs.txt").read().strip()
           today = datetime.date.today().strftime("%B %d, %Y")
           
           # Generate version number only (AI will create the title)
@@ -53,18 +67,29 @@ jobs:
           
           print(f"🎯 Commit: {commit_message}")
           print(f"📁 Changed files: {changed_files}")
+          print(f"📄 File diffs preview: {file_diffs[:500]}...")
 
           prompt = f"""
-          Create an update card for an unblocked games website.
+          Create an update card for an unblocked games website by analyzing the actual code changes.
 
-          Commit: "{commit_message}"
-          Changed files: {changed_files}
+          COMMIT MESSAGE: "{commit_message}"
+          CHANGED FILES: {changed_files}
 
-          Create a RELEVANT TITLE based on the changes (e.g., "Game Collection Update", "Performance Boost", "New Features")
-          And ONE descriptive bullet point explaining:
-          - What file was changed
-          - What specific change was made  
-          - How it affects users
+          ACTUAL CODE CHANGES (diff format):
+          {file_diffs}
+
+          Analyze the code changes and create:
+          1. A RELEVANT TITLE that summarizes the changes
+          2. ONE accurate description that explains:
+             - What specific changes were made in the code
+             - Which games/features were added, removed, or modified
+             - How this affects the user experience
+
+          Be specific about:
+          - Game names if games were added/removed
+          - UI/UX changes if CSS/HTML was modified
+          - Performance improvements if technical changes were made
+          - New features if functionality was added
 
           Return ONLY this HTML structure:
 
@@ -78,12 +103,12 @@ jobs:
             </div>
             <div class="update-content">
               <ul class="update-list">
-                <li>[AI-GENERATED DESCRIPTION WITH EMOJI]</li>
+                <li>[AI-GENERATED DESCRIPTION WITH EMOJI BASED ON ACTUAL CODE CHANGES]</li>
               </ul>
             </div>
           </div>
 
-          Make the title creative and relevant to the changes!
+          Make it accurate and specific to the code changes!
           """
 
           try:
@@ -92,10 +117,10 @@ jobs:
                       {"parts": [{"text": prompt}]}
                   ],
                   "generationConfig": {
-                      "temperature": 0.9,
+                      "temperature": 0.7,
                       "topK": 40,
                       "topP": 0.95,
-                      "maxOutputTokens": 1000,
+                      "maxOutputTokens": 1200,
                   }
               }
 
@@ -185,4 +210,4 @@ jobs:
           git push
 
       - name: 🧹 Cleanup
-        run: rm -f new_update.html commit_message.txt changed_files.txt
+        run: rm -f new_update.html commit_message.txt changed_files.txt file_diffs.txt
