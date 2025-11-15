@@ -166,6 +166,28 @@
             gap: 0.5rem;
         }
 
+        .heart-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    font-size: 2rem;
+    color: hsl(0, 100%, 70%);
+    text-decoration: none;
+    cursor: pointer;
+    z-index: 999;
+    transition: transform 0.2s, text-shadow 0.3s;
+    text-shadow: 
+        0 0 10px rgba(255, 0, 80, 0.6),
+        0 0 20px rgba(255, 0, 80, 0.4);
+}
+
+.heart-btn:hover {
+    transform: scale(1.2);
+    text-shadow:
+        0 0 15px rgba(255, 0, 80, 0.9),
+        0 0 25px rgba(255, 0, 80, 0.7);
+}
+
         @media (min-width: 768px) {
             .title {
                 font-size: 5rem;
@@ -344,5 +366,6 @@
       alert("Bi6Web Proxy will be down for now as I need to find a different site hoster and It is a bit of a struggle to fix some of the coding neccessary for it to run properly via NPM, echo export, etc. -Jericho");
     };
 </script>
+    <a href="/emma.html" class="heart-btn">❤</a>
 </body>
 </html>
