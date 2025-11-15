@@ -4,76 +4,85 @@ on:
   push:
     branches:
       - main
+      - master
 
 jobs:
-  generate-log:
+  generate-update-log:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0
+          fetch-depth: 2
 
-      - name: Get previous tag
-        id: prev
+      - name: Get Commit Info
+        id: commit
         run: |
-          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0.0")
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "message<<EOF" >> $GITHUB_OUTPUT
+          echo "$(git log -1 --pretty=%B)" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Create new version number
-        id: version
-        run: |
-          OLD=${{ steps.prev.outputs.tag }}
-          BASE=$(echo "$OLD" | sed 's/v//')
-          PART4=$(( $(echo $BASE | awk -F. '{print $4}') + 1 ))
-          NEW="v1.0.0.$PART4"
-          echo "new_version=$NEW" >> $GITHUB_OUTPUT
-
-      - name: Get diff
+      - name: Get File Diff
         id: diffstep
         run: |
-          DIFF=$(git log -1 --pretty=format: --name-status HEAD)
+          FILES=$(git diff --name-only HEAD~1 HEAD)
           PATCH=$(git diff HEAD~1 HEAD)
-          echo "diff<<EOF" >> $GITHUB_OUTPUT
-          echo "$DIFF" >> $GITHUB_OUTPUT
+
+          echo "files<<EOF" >> $GITHUB_OUTPUT
+          echo "$FILES" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
+
           echo "patch<<EOF" >> $GITHUB_OUTPUT
           echo "$PATCH" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Generate AI Summary (Gemini Flash)
+      - name: Generate AI Summary (Gemini 2.5 Flash)
         id: ai
         run: |
-          SUMMARY=$(curl -s -X POST \
+          PAYLOAD=$(cat << 'EOF'
+          {
+            "contents": [
+              {
+                "parts": [
+                  {
+                    "text": "Summarize the following website updates into a clean update log entry that normal people can read. Avoid coding jargon. Use 2–4 bullet points.\n\nFORMAT:\n1. Website version (auto-added later)\n2. Date\n3. Changes (bullet points)\n\nCommit Message:\n${{ steps.commit.outputs.message }}\n\nFiles Changed:\n${{ steps.diffstep.outputs.files }}\n\nPatch:\n${{ steps.diffstep.outputs.patch }}"
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+          )
+
+          RESPONSE=$(curl -s -X POST \
             -H "Content-Type: application/json" \
-            -d "{
-              'contents':[{
-                'parts':[{
-                  'text': 'Summarize these website code changes into a clear update log note for normal users (not coders). Do NOT include code. Make it readable and normal. Use 2–4 bullet points.\n\nFiles Changed:\n${{ steps.diffstep.outputs.diff }}\n\nPatch:\n${{ steps.diffstep.outputs.patch }}'
-                }]
-              }]
-            }" \
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyDbsKCMD-m3Sj-9c_z7SxzIQxfTBBUiZj0" \
-            | jq -r '.candidates[0].content.parts[0].text')
+            -d "$PAYLOAD" \
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${{ secrets.GEMINI_API_KEY }}" )
 
-          echo "summary=$SUMMARY" >> $GITHUB_OUTPUT
+          SUMMARY=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text')
 
-      - name: Insert update into ul.html
+          echo "summary<<EOF" >> $GITHUB_OUTPUT
+          echo "$SUMMARY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Insert Update Into ul.html
         run: |
-          VERSION=${{ steps.version.outputs.new_version }}
-          DATE=$(date +"%Y-%m-%d")
-          SUMMARY="${{ steps.ai.outputs.summary }}"
+          VERSION="1.$(date +%m).$(date +%d).$(git rev-parse --short HEAD)"
+          TODAY=$(date +"%B %d, %Y")
 
-          INSERT="<li><strong>$VERSION</strong> — $DATE<br>$SUMMARY</li>"
+          NEW_ENTRY="<div class=\"update-item\">
+<h2 class=\"version-title\">Website Version $VERSION</h2>
+<p class=\"version-date\">$TODAY</p>
+<p>${{ steps.ai.outputs.summary }}</p>
+</div>"
 
-          sed -i "s|<!-- UPDATES HERE -->|$INSERT\n<!-- UPDATES HERE -->|" ul.html
+          sed -i "/<!-- UPDATE_LOG_START -->/a $NEW_ENTRY" ul.html
 
-      - name: Commit and push
+      - name: Commit and Push Update Log
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
           git add ul.html
-          git commit -m "Automated update log entry"
-          git tag ${{ steps.version.outputs.new_version }}
-          git push --follow-tags
+          git commit -m "Auto-update log entry"
+          git push
