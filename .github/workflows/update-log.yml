@@ -1,0 +1,71 @@
+name: Auto Update Log
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  generate-log:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Get commit messages
+        run: |
+          git log -1 --pretty=format:"%s%n%n%b" > commit.txt
+
+      - name: Install Python dependencies
+        run: |
+          pip install requests
+
+      - name: Generate update log with Gemini
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python3 << 'EOF'
+          import requests, json
+
+          # Read commit text
+          commit_text = open("commit.txt").read()
+
+          # Gemini API URL (insert your key in GitHub secrets)
+          url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + "${GEMINI_API_KEY}"
+
+          prompt = f"""
+          You are an automated update-log generator.
+          Based on the Git commit below, generate a clean update log section.
+
+          Commit:
+          {commit_text}
+
+          Format like:
+
+          ## Update – YYYY-MM-DD
+          - Changes...
+          - Improvements...
+          """
+
+          payload = {
+              "contents": [
+                  {"parts": [{"text": prompt}]}
+              ]
+          }
+
+          response = requests.post(url, json=payload)
+          data = response.json()
+
+          output = data["candidates"][0]["content"]["parts"][0]["text"]
+
+          with open("updates.md", "a") as f:
+              f.write("\n" + output + "\n")
+
+          EOF
+
+      - name: Commit update log
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git add updates.md
+          git commit -m "Auto update log"
+          git push
