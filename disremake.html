@@ -197,6 +197,25 @@ let currentRoom = null;
 let members = [];
 let currentUser = null;
 
+// ===============================
+//        AUTO MUTE SYSTEM
+// ===============================
+const bannedWords = [
+  "nigger", "nigga", "niger", "faggot", "fag", "bitch", "asshole", "cunt", "dick", "pussy", "fuck", "shit", "slut", "whore", "idiot", "kill yourself", "rape", "pedophile", "incest", "terrorist", "bomb", "drug", "meth", "cocaine", "heroin", "weed", "marijuana", "nsfw", "porn", "nazi", "kkk"];   // customize
+const repetitionLimit = 20;      // how many repeats before auto-mute
+const repeatMuteDuration = 60000; // spam mute = 60 sec
+let mutedUntil = parseInt(localStorage.getItem("mutedUntil")) || 0;
+
+function isMuted() {
+    return Date.now() < mutedUntil;
+}
+
+function applyMute(duration, reason) {
+    mutedUntil = Date.now() + duration;
+    localStorage.setItem("mutedUntil", mutedUntil);
+    alert(reason + "\nMuted for " + Math.ceil(duration / 1000) + " seconds.");
+}
+
 // ========== DOM ==========
 const DOM = {
   messages: document.querySelector('.messages'),
@@ -269,7 +288,7 @@ function updateConnectionStatus(status) {
   DOM.userStatus.textContent = status === 'Connected' ? 'Online' : 'Offline';
 }
 
-// clear button (per-room)
+// clear button
 const clearBtn = document.createElement('button');
 clearBtn.innerHTML = '🗑️';
 Object.assign(clearBtn.style, {
@@ -287,8 +306,6 @@ Object.assign(clearBtn.style, {
   boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
   transition: 'transform 0.1s ease, background 0.2s ease'
 });
-
-// Hover effect
 clearBtn.addEventListener('mouseenter', () => {
   clearBtn.style.transform = 'scale(1.1)';
   clearBtn.style.background = '#3a3b3f';
@@ -297,14 +314,11 @@ clearBtn.addEventListener('mouseleave', () => {
   clearBtn.style.transform = 'scale(1)';
   clearBtn.style.background = '#2c2d31';
 });
-
-// Click action
 clearBtn.addEventListener('click', () => {
   if (!confirm(`Clear saved chat for "${currentRoomName}"?`)) return;
   localStorage.removeItem(getRoomStorageKey(currentRoomName));
   DOM.messages.innerHTML = '';
 });
-
 document.body.appendChild(clearBtn);
 
 // ========== Message DOM helpers ==========
@@ -359,7 +373,7 @@ function addMessageToListDOM(text, authorName, color, isoTime) {
   }
 }
 
-// ========== Local storage helpers (per-room) ==========
+// ========== Local storage helpers ==========
 function saveMessageToLocal(text, name, color, roomName, isoTime) {
   try {
     const key = getRoomStorageKey(roomName);
@@ -391,7 +405,6 @@ function initializeScaledroneAndJoin() {
   DOM.userAvatar.textContent = currentUser.name.charAt(0).toUpperCase();
   DOM.userAvatar.style.backgroundColor = currentUser.color;
 
-  // connect once
   drone = new ScaleDrone(CLIENT_ID, { data: currentUser });
 
   drone.on('open', err => {
@@ -409,7 +422,6 @@ function initializeScaledroneAndJoin() {
 }
 
 function joinRoom(roomName) {
-  // unsubscribe previous
   try {
     if (currentRoom && typeof currentRoom.unsubscribe === 'function') {
       currentRoom.unsubscribe();
@@ -443,7 +455,6 @@ function joinRoom(roomName) {
     updateMembersDOM();
   });
 
-  // single data handler: append & save (this prevents double-appending)
   currentRoom.on('data', (message, member) => {
     if (!member) return;
     const name = member.clientData && member.clientData.name ? member.clientData.name : 'Someone';
@@ -455,13 +466,45 @@ function joinRoom(roomName) {
   });
 }
 
-// ========== Sending messages (FIXED) ==========
+// ========== Sending messages (WITH AUTO MUTE / AUTO DELETE) ==========
 function sendMessage() {
   const value = DOM.input.value.trim();
+  const lower = value.toLowerCase();
+
   if (!value || !drone || !currentRoom) return;
+
+  // If muted
+  if (isMuted()) {
+    const timeLeft = Math.ceil((mutedUntil - Date.now()) / 1000);
+    alert(`You are muted for ${timeLeft} more seconds.`);
+    return;
+  }
+
+  // ---- REPEATED SPAM CHECK ----
+  for (let word of bannedWords) {
+    let count = lower.split(word).length - 1;
+    if (count >= repetitionLimit) {
+      DOM.input.value = "";
+      applyMute(repeatMuteDuration, "Spam detected: repeated banned word.");
+      return;
+    }
+  }
+
+  // ---- SINGLE BANNED WORD CHECK ----
+  for (let word of bannedWords) {
+    if (lower.includes(word)) {
+      DOM.input.value = "";
+      applyMute(15000, "Banned word detected.");
+      return;
+    }
+  }
+
   DOM.input.value = '';
-  // publish only — DO NOT append/save here (room.on('data') will handle it once)
-  drone.publish({ room: `observable-${currentRoomName}`, message: value });
+
+  drone.publish({
+    room: `observable-${currentRoomName}`,
+    message: value
+  });
 }
 
 // ========== Members DOM ==========
@@ -511,7 +554,7 @@ function updateMembersDOM() {
       el.className = 'member';
       el.textContent = (m.clientData && m.clientData.name) || 'Unknown';
       DOM.membersList.appendChild(el);
-    } catch (e) { /* ignore */ }
+    } catch (e) { }
   });
   const count = members.length;
   DOM.membersCount.textContent = `${count} users in room:`;
@@ -520,7 +563,7 @@ function updateMembersDOM() {
   DOM.onlineCount.textContent = count;
 }
 
-// ========== Channel switching UI ==========
+// ========== Channel switching ==========
 function wireChannelItems() {
   const items = document.querySelectorAll('.channel-item');
   items.forEach(it => {
@@ -535,7 +578,7 @@ function wireChannelItems() {
   });
 }
 
-// ========== Event listeners (attach once) ==========
+// ========== Events ==========
 DOM.form.addEventListener('submit', e => { e.preventDefault(); sendMessage(); });
 DOM.input.addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
 
@@ -546,7 +589,7 @@ window.addEventListener('load', () => {
   loadChatHistoryForRoom(currentRoomName);
 });
 </script>
-  <script>
+<script>
   // ---- Rules Popup on Page Load ----
   window.addEventListener("load", () => {
     const rules = `
@@ -565,4 +608,3 @@ By continuing, you agree to follow these rules.
     alert(rules);
   });
 </script>
-
