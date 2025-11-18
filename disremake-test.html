@@ -1,287 +1,196 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>BI6CORD | BI6ZONE</title>
-  <script type='text/javascript' src='https://cdn.scaledrone.com/scaledrone.min.js'></script>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { display: flex; height: 100vh; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #36393F; color: white; overflow: hidden; }
-    .server-sidebar { width: 72px; background-color: #1f1e23; padding: 12px 8px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
-    .server-icon { width: 48px; height: 48px; background-color: #5865F2; border-radius: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: border-radius 0.2s ease; position: relative; }
-    .server-icon:hover { border-radius: 16px; }
-    .server-icon img { width: 28px; height: 28px; border-radius: 50%; }
-    .separator { width: 32px; height: 2px; background-color: #4F545C; border-radius: 1px; margin: 4px 0; }
-    .nav-icon { width: 48px; height: 48px; background-color: #36393F; border-radius: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s ease; }
-    .nav-icon:hover { background-color: #5865F2; border-radius: 16px; }
-    .nav-icon img { width: 20px; height: 20px; filter: invert(1); }
-    .channel-sidebar { width: 240px; background-color: #2c2d31; display: flex; flex-direction: column; }
-    .server-header { height: 48px; padding: 0 16px; display: flex; align-items: center; border-bottom: 1px solid #1e1f22; font-weight: 600; cursor: pointer; }
-    .server-header:hover { background-color: #35373C; }
-    .channels-container { flex: 1; padding: 16px 8px; overflow-y: auto; }
-    .channel-category { display: flex; align-items: center; justify-content: space-between; padding: 16px 8px 4px 8px; font-size: 12px; font-weight: 600; color: #96989D; text-transform: uppercase; letter-spacing: 0.02em; }
-    .channel-item { display: flex; align-items: center; padding: 6px 8px; margin: 1px 0; border-radius: 4px; cursor: pointer; color: #96989D; transition: all 0.15s ease; }
-    .channel-item:hover { background-color: #35373C; color: #DCDDDE; }
-    .channel-item.active { background-color: #404249; color: white; }
-    .channel-item::before { content: '#'; margin-right: 6px; font-weight: 300; }
-    .user-info { height: 52px; background-color: #232428; padding: 8px; display: flex; align-items: center; gap: 8px; }
-    .user-avatar { width: 32px; height: 32px; border-radius: 50%; background-color: #5865F2; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px; }
-    .user-details { flex: 1; min-width: 0; }
-    .user-name { font-size: 14px; font-weight: 600; color: white; line-height: 18px; }
-    .user-status { font-size: 12px; color: #96989D; line-height: 16px; }
-    .chat-container { flex: 1; background-color: #36393F; display: flex; flex-direction: column; }
-    .chat-header { height: 48px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #1e1f22; gap: 8px; }
-    .chat-header-left { display: flex; align-items: center; gap: 8px; }
-    .chat-header-right { font-size: 14px; color: #96989D; }
-    .chat-header::before { content: '#'; color: #96989D; font-weight: 300; }
-    .channel-name { font-weight: 600; color: white; }
-    .messages-container { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 4px; }
-    .message { display: flex; gap: 16px; padding: 2px 0; margin: 4px 0; border-radius: 4px; transition: background-color 0.1s ease; }
-    .message:hover { background-color: #32353B; }
-    .message-avatar { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 16px; flex-shrink: 0; margin-top: 2px; }
-    .message-content { flex: 1; min-width: 0; }
-    .message-header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
-    .message-author { font-weight: 500; font-size: 16px; cursor: pointer; }
-    .message-author:hover { text-decoration: underline; }
-    .message-timestamp { font-size: 12px; color: #96989D; font-weight: 500; }
-    .message-text { font-size: 16px; line-height: 22px; color: #DCDDDE; word-wrap: break-word; }
-    .message-input-container { padding: 16px; }
-    .message-form { background-color: #40444B; border-radius: 8px; padding: 11px 16px; display: flex; align-items: center; gap: 12px; }
-    .message-input { flex: 1; background: transparent; border: none; color: white; font-size: 16px; line-height: 22px; resize: none; outline: none; }
-    .message-input::placeholder { color: #96989D; }
-    .send-button { background-color: #5865F2; color: white; border: none; border-radius: 6px; padding: 8px 16px; font-size: 14px; font-weight: 500; cursor: pointer; transition: background-color 0.15s ease; }
-    .send-button:hover { background-color: #4752C4; }
-    .send-button:disabled { background-color: #36393F; cursor: not-allowed; opacity: 0.5; }
-    .members-sidebar { width: 240px; background-color: #2c2d31; display: flex; flex-direction: column; border-left: 1px solid #1e1f22; }
-    .members-header { height: 48px; padding: 0 16px; display: flex; align-items: center; border-bottom: 1px solid #1e1f22; font-weight: 600; color: white; }
-    .members-content { flex: 1; overflow-y: auto; padding: 16px 8px; }
-    .members-section { margin-bottom: 24px; }
-    .members-section-title { font-size: 12px; font-weight: 600; color: #96989D; text-transform: uppercase; letter-spacing: 0.02em; margin-bottom: 8px; padding: 0 8px; }
-    .member-item { display: flex; align-items: center; padding: 2px 8px; margin: 1px 0; border-radius: 4px; cursor: pointer; transition: background-color 0.15s ease; }
-    .member-item:hover { background-color: #35373C; }
-    .member-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px; margin-right: 12px; position: relative; }
-    .member-avatar::after { content: ''; position: absolute; bottom: -2px; right: -2px; width: 12px; height: 12px; background-color: #3ba55c; border: 3px solid #2c2d31; border-radius: 50%; }
-    .member-info { flex: 1; min-width: 0; }
-    .member-name { font-size: 14px; font-weight: 500; color: white; line-height: 18px; }
-    .member-status { font-size: 12px; color: #96989D; line-height: 16px; }
-    .members-info { font-size: 12px; color: #96989D; margin-bottom: 8px; padding: 0 8px; }
-    .members-list { max-height: 200px; overflow-y: auto; padding: 0 8px; }
-    .member { padding: 2px 0; font-size: 14px; font-weight: 500; }
-    @media (max-width: 1024px) { .members-sidebar { display: none; } .channel-members { display: block; } }
-    @media (min-width: 1025px) { .channel-members { display: none; } .members-sidebar { display: flex; } }
-    @media (max-width: 768px) { .server-sidebar { width: 60px; padding: 8px 4px; } .server-icon, .nav-icon { width: 40px; height: 40px; } .channel-sidebar { width: 200px; } .message-form { padding: 8px 12px; } .message-input { font-size: 14px; } }
-    @media (max-width: 480px) { .server-sidebar { width: 50px; padding: 6px 2px; } .server-icon, .nav-icon { width: 36px; height: 36px; } .channel-sidebar { width: 180px; } .chat-header { padding: 0 12px; } .messages-container { padding: 12px; } .message-input-container { padding: 12px; } }
-    ::-webkit-scrollbar { width: 8px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background-color: #1a1a1a; border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background-color: #2a2a2a; }
-    .connection-status { position: fixed; top: 10px; right: 10px; padding: 8px 12px; border-radius: 4px; font-size: 12px; font-weight: 500; z-index: 1000; }
-    .connection-status.connected { background-color: #3ba55c; color: white; }
-    .connection-status.disconnected { background-color: #ed4245; color: white; }
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>BI6CORD — Voice Only</title>
 
-    /* tiny invisible hint area (debug outline if you need it) */
-    #owner-invisible-area { /* styling applied dynamically by JS */ }
+<!-- Scaledrone SDK -->
+<script src="https://cdn.scaledrone.com/scaledrone.min.js"></script>
 
-    /* typing indicator style */
-    .typing-indicator {
-      font-style: italic;
-      font-size: 13px;
-      color: #b9bbbe;
-      margin: 6px 0 0 10px;
-      min-height: 18px;
-    }
-  </style>
+<style>
+  /* Layout & palette inspired by Discord remake you provided */
+  :root {
+    --bg: #36393F;
+    --sidebar: #2c2d31;
+    --serverbar: #1f1e23;
+    --muted: #96989D;
+    --accent: #5865F2;
+    --card: #232428;
+    --panel: #40444B;
+    --text: #DCDDDE;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; }
+  html,body { height: 100%; background: var(--bg); color: var(--text); }
+
+  /* App layout */
+  .app { display:flex; height:100vh; width:100vw; overflow:hidden; }
+
+  /* server column (leftmost) */
+  .server-sidebar { width:72px; background:var(--serverbar); padding:12px 8px; display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .server-icon { width:48px; height:48px; border-radius:24px; background:var(--accent); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .nav-icon { width:48px; height:48px; border-radius:24px; background:var(--bg); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .nav-icon img, .server-icon img { width:22px; height:22px; filter: invert(1); }
+
+  /* channel column */
+  .channel-sidebar { width:260px; background:var(--sidebar); display:flex; flex-direction:column; }
+  .server-header { height:48px; display:flex; align-items:center; padding:0 16px; border-bottom:1px solid #1e1f22; font-weight:600; cursor:pointer; }
+  .channels-container { padding:12px 8px; overflow:auto; flex:1; }
+  .channel-category { padding:8px 8px; font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; display:flex; justify-content:space-between; align-items:center; }
+  .channel-item { padding:8px 10px; border-radius:6px; margin:6px 4px; cursor:pointer; color:var(--muted); display:flex; align-items:center; gap:8px; }
+  .channel-item:hover { background:#35373C; color:var(--text); }
+  .channel-item.active { background:#404249; color:var(--text); }
+  .voice-indicator { font-size:14px; }
+
+  /* main area (center) */
+  .chat-area { flex:1; display:flex; flex-direction:column; background:var(--bg); }
+  .chat-header { height:64px; display:flex; align-items:center; justify-content:space-between; padding:0 16px; border-bottom:1px solid #1e1f22; }
+  .channel-title { font-weight:700; font-size:18px; display:flex; gap:10px; align-items:center; }
+  .content { flex:1; padding:20px; overflow:auto; }
+  .status-card { background:var(--card); padding:18px; border-radius:10px; border:1px solid #1e1f22; max-width:900px; }
+
+  /* members sidebar (right) */
+  .members-sidebar { width:260px; background:var(--sidebar); border-left:1px solid #1e1f22; display:flex; flex-direction:column; }
+  .members-header { height:48px; display:flex; align-items:center; padding:0 16px; border-bottom:1px solid #1e1f22; font-weight:600; color:var(--text); }
+  .members-content { padding:12px; overflow:auto; flex:1; }
+  .member-item { display:flex; align-items:center; gap:10px; padding:6px 8px; border-radius:6px; }
+  .member-avatar { width:36px; height:36px; border-radius:50%; background:var(--accent); display:flex; align-items:center; justify-content:center; font-weight:700; color:white; }
+  .member-name { font-size:14px; font-weight:600; color:var(--text); }
+  .member-presence { font-size:12px; color:var(--muted); }
+
+  /* controls */
+  .controls { display:flex; gap:8px; align-items:center; }
+  .cta-btn { background:var(--accent); color:white; padding:8px 12px; border-radius:8px; border:none; cursor:pointer; }
+
+  /* misc */
+  audio { display:none; } /* audio elements are hidden (auto-play) */
+  @media (max-width:1000px) { .members-sidebar { display:none; } }
+</style>
 </head>
 <body>
-  <!-- Connection Status -->
-  <div id="connectionStatus" class="connection-status disconnected">Connecting...</div>
+<div class="app">
 
-  <!-- Server Sidebar -->
- <div class="server-sidebar">
-  <a href="index.html" class="server-icon" title="Home">
-    <img src="https://img.icons8.com/ios-filled/50/ffffff/discord-logo.png" alt="Discord Logo"/>
-  </a>
-  <div class="separator"></div>
-  <a href="main.html" class="nav-icon" title="Home">
-    <img src="https://img.icons8.com/ios-filled/50/ffffff/home.png" alt="Home">
-  </a>
-  <a href="g.html" class="nav-icon" title="Games">
-    <img src="https://img.icons8.com/ios-filled/50/ffffff/controller.png" alt="Games">
-  </a>
-  <a href="a.html" class="nav-icon" title="Apps">
-    <img src="https://img.icons8.com/ios-filled/50/ffffff/app-store.png" alt="Apps">
-  </a>
-  <a href="e.html" class="nav-icon" title="Exploits">
-    <img src="https://img.icons8.com/ios-filled/50/ffffff/hacker.png" alt="Exploits">
-  </a>
-  <a href="s.html" class="nav-icon" title="Settings">
-    <img src="https://img.icons8.com/ios-filled/50/ffffff/settings.png" alt="Settings">
-  </a>
-  <a href="disremake.html" class="nav-icon" title="Chat">
-    <img src="https://img.icons8.com/ios-filled/50/ffffff/chat.png" alt="Chat">
-  </a>
-</div>
+  <!-- SERVER SIDEBAR -->
+  <div class="server-sidebar">
+    <a class="server-icon" title="Home"><img src="https://img.icons8.com/ios-filled/50/ffffff/discord-logo.png" alt=""></a>
+    <div style="height:8px;"></div>
+    <a class="nav-icon" title="Home"><img src="https://img.icons8.com/ios-filled/50/ffffff/home.png" alt=""></a>
+    <a class="nav-icon" title="Games"><img src="https://img.icons8.com/ios-filled/50/ffffff/controller.png" alt=""></a>
+  </div>
 
-  <!-- Channel Sidebar -->
-<div class="channel-sidebar">
-  <div class="server-header">Unblockedcord</div>
+  <!-- CHANNEL / VOICE SIDEBAR -->
+  <div class="channel-sidebar">
+    <div class="server-header">Unblockedcord</div>
 
-  <div class="channels-container">
-
-    <!-- TEXT CHANNELS -->
-    <div class="channel-category">
-      <span>Text Channels</span>
-      <span>+</span>
-    </div>
-
-    <div class="channel-item text-channel active">general</div>
-<div class="channel-item text-channel">random</div>
-<div class="channel-item text-channel">memes</div>
-
-    <!-- MEMBER LIST (unchanged) -->
-    <div class="channel-members">
-      <div class="members-info">
-        <span class="members-count">0 users in room:</span>
+    <div class="channels-container">
+      <div class="channel-category">
+        <span>Voice Channels</span>
       </div>
-      <div class="members-list"></div>
+
+      <!-- Voice channels (these call joinVoiceChannel) -->
+      <div class="channel-item voice-channel" vc="voice-lobby" onclick="toggleJoinVoice('voice-lobby')">
+        <span class="voice-indicator">🔊</span> <span>voice-lobby</span>
+      </div>
+
+      <div class="channel-item voice-channel" vc="gaming-vc" onclick="toggleJoinVoice('gaming-vc')">
+        <span class="voice-indicator">🎮</span> <span>gaming-vc</span>
+      </div>
+
+      <div class="channel-item voice-channel" vc="chill-vc" onclick="toggleJoinVoice('chill-vc')">
+        <span class="voice-indicator">😎</span> <span>chill-vc</span>
+      </div>
+
+      <!-- small presence summary -->
+      <div style="height:14px;"></div>
+      <div class="channel-category" style="margin-top:6px;">
+        <span>Presence</span>
+      </div>
+      <div style="padding:8px;color:var(--muted);font-size:13px;">
+        <span id="presentCount">0</span> users online
+      </div>
     </div>
 
-   <!-- VOICE CHANNELS -->
-<div class="channel-category" style="margin-top: 20px;">
-  <span>Voice Channels</span>
-</div>
-
-<div class="channel-item voice-channel" onclick="joinVoiceChannel('voice-lobby')">
-  🔊 voice-lobby
-</div>
-
-<div class="channel-item voice-channel" onclick="joinVoiceChannel('gaming-vc')">
-  🎮 gaming-vc
-</div>
-
-<div class="channel-item voice-channel" onclick="joinVoiceChannel('chill-vc')">
-  😎 chill-vc
-</div>
-
-  <!-- USER INFO (unchanged) -->
-  <div class="user-info">
-    <div class="user-avatar" id="userAvatar">U</div>
-    <div class="user-details">
-      <div class="user-name" id="userName">Connecting...</div>
-      <div class="user-status" id="userStatus">Offline</div>
+    <!-- user mini card -->
+    <div style="padding:10px;border-top:1px solid #1e1f22;">
+      <div style="display:flex;gap:8px;align-items:center;">
+        <div id="myAvatar" class="member-avatar">U</div>
+        <div style="flex:1;">
+          <div id="myName" style="font-weight:700;color:var(--text);font-size:14px;">Connecting...</div>
+          <div id="myStatus" style="font-size:12px;color:var(--muted)">Offline</div>
+        </div>
+        <button id="leaveBtn" class="cta-btn" onclick="leaveVoiceIfJoined()" style="padding:6px 8px;">Leave</button>
+      </div>
     </div>
   </div>
-</div>
 
-  <!-- Chat Container -->
-  <div class="chat-container">
+  <!-- MAIN AREA -->
+  <div class="chat-area">
     <div class="chat-header">
-      <div class="chat-header-left"><span class="channel-name">general</span></div>
-      <div class="chat-header-right"><span class="members-count-header">0 members</span></div>
+      <div class="channel-title" id="headerTitle">No voice channel selected</div>
+      <div class="controls">
+        <div id="vcStatus" style="color:var(--muted)">Not connected</div>
+      </div>
     </div>
-    <div class="messages-container messages"></div>
-    <!-- typing indicator will be appended into .messages by JS -->
-    <div class="message-input-container">
-      <form class="message-form" onsubmit="return false;">
-        <input id="messageInput" class="message-input message-form__input" placeholder="Type a message..." type="text"/>
-        <button class="send-button message-form__button" type="submit" disabled>Send</button>
-      </form>
-    </div>
-  </div>
 
-  <!-- Members Sidebar -->
-  <div class="members-sidebar">
-    <div class="members-header"><span>Members — <span class="members-count-sidebar">0</span></span></div>
-    <div class="members-content">
-      <div class="members-section">
-        <div class="members-section-title">Online — <span class="online-count">0</span></div>
-        <div class="members-list-sidebar"></div>
+    <div class="content">
+      <div class="status-card" id="statusCard">
+        <h2 id="cardTitle">Welcome to Unblockedcord Voice</h2>
+        <p id="cardBody" style="margin-top:8px;color:var(--muted);line-height:1.45;">
+          Click a voice channel on the left to join. Your browser will ask for microphone permission.
+        </p>
+        <div style="margin-top:12px;">
+          <button class="cta-btn" onclick="promptJoinLast()">Join last channel</button>
+        </div>
       </div>
     </div>
   </div>
+
+  <!-- MEMBERS SIDEBAR (kept) -->
+  <div class="members-sidebar">
+    <div class="members-header">Members — <span id="membersCountHeader">0</span></div>
+    <div class="members-content" id="membersList"></div>
+  </div>
+</div>
+
+<!-- Hidden audio container for remote streams (audio elements appended here) -->
+<div id="audioContainer" style="display:none;"></div>
 
 <script>
-/**************************************************************************
- Combined features (fixed):
- - Multi-room (click channel items to switch)
- - Per-room localStorage chat saving + load
- - Clear current room button
- - Invisible bottom-right 20-click Owner unlock
- - Scaledrone realtime messaging
- - NO typing indicators
- - Fix: messages no longer send twice
-***************************************************************************/
+/* ========== VOICE-ONLY APP (Scaledrone for presence + signaling) ==========
 
-// ========== CONFIG ==========
-const CLIENT_ID = 'scR7GZ7VfeoTZw5f';
-const OWNER_AREA = { right: 2, bottom: 2, width: 8, height: 8 };
-const OWNER_REQUIRED_CLICKS = 20;
-const OWNER_STORAGE_KEY = 'jerichoOwnerUnlocked';
-const CHAT_STORAGE_KEY_BASE = 'unblockedcord_chat_history';
+  - Replace CLIENT_ID with your Scaledrone channel ID.
+  - Page must be served via HTTPS or localhost.
+  - Scaledrone is used ONLY for presence and WebRTC signaling (no text chat).
+*/
 
-let currentRoomName = 'general';
+const CLIENT_ID = "YOUR_SCALEDONE_CHANNEL_ID"; // <-- REPLACE THIS
+const PRESENCE_ROOM = "observable-presence";   // presence room to display members
+const VOICE_ROOM_PREFIX = "observable-voice-"; // combined with channel id
+const VOICE_CHANNELS = ["voice-lobby","gaming-vc","chill-vc"];
+
 let drone = null;
-let currentRoom = null;
-let members = [];
 let currentUser = null;
+let presenceRoom = null;
+let voiceRoom = null;
+let localStream = null;
+let pcs = {};               // map peerId -> RTCPeerConnection
+let joinedChannel = null;   // currently joined voice channel
 
-// ========== DOM ==========
-const DOM = {
-  messages: document.querySelector('.messages'),
-  input: document.querySelector('#messageInput'),
-  form: document.querySelector('.message-form'),
-  sendButton: document.querySelector('.message-form__button'),
-  connectionStatus: document.getElementById('connectionStatus'),
-  userName: document.getElementById('userName'),
-  userAvatar: document.getElementById('userAvatar'),
-  userStatus: document.getElementById('userStatus'),
-  membersCount: document.querySelector('.members-count'),
-  membersList: document.querySelector('.members-list'),
-  membersListSidebar: document.querySelector('.members-list-sidebar'),
-  membersCountHeader: document.querySelector('.members-count-header'),
-  membersCountSidebar: document.querySelector('.members-count-sidebar'),
-  onlineCount: document.querySelector('.online-count'),
-  channelName: document.querySelector('.channel-name'),
-  chatHeader: document.querySelector('.chat-header'),
-};
+// UI refs
+const membersListEl = document.getElementById('membersList');
+const membersCountHeader = document.getElementById('membersCountHeader');
+const presentCountEl = document.getElementById('presentCount');
+const headerTitle = document.getElementById('headerTitle');
+const vcStatus = document.getElementById('vcStatus');
+const myNameEl = document.getElementById('myName');
+const myStatusEl = document.getElementById('myStatus');
+const myAvatarEl = document.getElementById('myAvatar');
+const audioContainer = document.getElementById('audioContainer');
 
-// ========== OWNER UNLOCK AREA ==========
-function createInvisibleOwnerArea() {
-  const area = document.createElement('div');
-  area.id = 'owner-invisible-area';
-  Object.assign(area.style, {
-    position: 'fixed',
-    right: OWNER_AREA.right + 'px',
-    bottom: OWNER_AREA.bottom + 'px',
-    width: OWNER_AREA.width + 'px',
-    height: OWNER_AREA.height + 'px',
-    zIndex: 99999,
-    background: 'transparent',
-    cursor: 'pointer',
-    pointerEvents: 'auto'
-  });
-  let clicks = 0;
-  area.addEventListener('click', () => {
-    clicks++;
-    if (clicks >= OWNER_REQUIRED_CLICKS) {
-      localStorage.setItem(OWNER_STORAGE_KEY, '1');
-      alert('Owner unlocked: Owner/Jericho — this browser will now show the owner name.');
-      location.reload();
-    }
-  });
-  document.body.appendChild(area);
-}
-function isOwnerUnlocked() { return localStorage.getItem(OWNER_STORAGE_KEY) === '1'; }
-createInvisibleOwnerArea();
-
-// ========== UTIL ==========
-function getRoomStorageKey(roomName) {
-  return `${CHAT_STORAGE_KEY_BASE}_${roomName}`;
-}
+// ---------- utility ----------
 function getRandomName() {
-  const adjs = ["autumn","hidden","bitter","misty","silent","empty","dry","dark","summer","icy","delicate","quiet","white","cool","spring","winter","patient","twilight","dawn","crimson","wispy","weathered","blue","billowing","broken","cold","damp","falling","frosty","green","long","late","lingering","bold","little","morning","muddy","old","red","rough","still","small","sparkling","throbbing","shy","wandering","withered","wild","black","young","holy","solitary","fragrant","aged","snowy","proud","floral","restless","divine","polished","ancient","purple","lively","nameless"];
-  const nouns = ["waterfall","river","breeze","moon","rain","wind","sea","morning","snow","lake","sunset","pine","shadow","leaf","dawn","glitter","forest","hill","cloud","meadow","sun","glade","bird","brook","butterfly","bush","dew","dust","field","fire","flower","firefly","feather","grass","haze","mountain","night","pond","darkness","snowflake","silence","sound","sky","shape","surf","thunder","violet","water","wildflower","wave","water","resonance","sun","wood","dream","cherry","tree","fog","frost","voice","paper","frog","smoke","star"];
+  const adjs = ["quiet","blue","brave","wild","lucky","shadow","crimson","silent","icy","bold"];
+  const nouns = ["river","moon","breeze","pine","cloud","glade","star","ember","dawn","forest"];
   return adjs[Math.floor(Math.random()*adjs.length)] + "_" + nouns[Math.floor(Math.random()*nouns.length)];
 }
 function getRandomColor() {
@@ -289,507 +198,315 @@ function getRandomColor() {
   while (c.length < 6) c = '0' + c;
   return '#' + c;
 }
+function shortIdFromName(name) { return name.slice(0,1).toUpperCase(); }
 
-// ========== UI ==========
-function updateConnectionStatus(status) {
-  DOM.connectionStatus.textContent = status;
-  DOM.connectionStatus.className = `connection-status ${status === 'Connected' ? 'connected' : 'disconnected'}`;
-  DOM.sendButton.disabled = status !== 'Connected';
-  DOM.userStatus.textContent = status === 'Connected' ? 'Online' : 'Offline';
-}
+// ---------- startup ----------
+function init() {
+  // create a local user object (as your old chat did)
+  currentUser = { name: getRandomName(), color: getRandomColor() };
+  myNameEl.textContent = currentUser.name;
+  myAvatarEl.textContent = shortIdFromName(currentUser.name);
+  myAvatarEl.style.background = currentUser.color;
 
-// clear button (per-room)
-const clearBtn = document.createElement('button');
-clearBtn.innerHTML = '🗑️';
-Object.assign(clearBtn.style, {
-  position: 'fixed',
-  left: '12px',
-  bottom: '12px',
-  background: '#2c2d31',
-  color: '#ED4245',
-  border: 'none',
-  borderRadius: '6px',
-  padding: '6px',
-  fontSize: '18px',
-  cursor: 'pointer',
-  zIndex: '1000',
-  boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
-  transition: 'transform 0.1s ease, background 0.2s ease'
-});
-
-// Hover effect
-clearBtn.addEventListener('mouseenter', () => {
-  clearBtn.style.transform = 'scale(1.1)';
-  clearBtn.style.background = '#3a3b3f';
-});
-clearBtn.addEventListener('mouseleave', () => {
-  clearBtn.style.transform = 'scale(1)';
-  clearBtn.style.background = '#2c2d31';
-});
-
-// Click action
-clearBtn.addEventListener('click', () => {
-  if (!confirm(`Clear saved chat for "${currentRoomName}"?`)) return;
-  localStorage.removeItem(getRoomStorageKey(currentRoomName));
-  DOM.messages.innerHTML = '';
-});
-
-document.body.appendChild(clearBtn);
-
-// ========== Message DOM helpers ==========
-function createMessageElement(text, authorName, color, isoTime) {
-  const messageEl = document.createElement('div');
-  messageEl.className = 'message';
-
-  const avatarEl = document.createElement('div');
-  avatarEl.className = 'message-avatar';
-  avatarEl.style.backgroundColor = color || '#5865F2';
-  avatarEl.textContent = (authorName && authorName.charAt(0).toUpperCase()) || '?';
-
-  const contentEl = document.createElement('div');
-  contentEl.className = 'message-content';
-
-  const headerEl = document.createElement('div');
-  headerEl.className = 'message-header';
-
-  const authorEl = document.createElement('span');
-  authorEl.className = 'message-author';
-  authorEl.style.color = color || '#DCDDDE';
-  authorEl.textContent = authorName || 'Unknown';
-  if (authorName === 'Owner/Jericho') authorEl.textContent += ' 👑';
-
-  const timestampEl = document.createElement('span');
-  timestampEl.className = 'message-timestamp';
-  let timeText = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  if (isoTime) {
-    try { timeText = new Date(isoTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch(e){}
-  }
-  timestampEl.textContent = timeText;
-
-  const textEl = document.createElement('div');
-  textEl.className = 'message-text';
-  textEl.textContent = text;
-
-  headerEl.appendChild(authorEl);
-  headerEl.appendChild(timestampEl);
-  contentEl.appendChild(headerEl);
-  contentEl.appendChild(textEl);
-
-  messageEl.appendChild(avatarEl);
-  messageEl.appendChild(contentEl);
-  return messageEl;
-}
-
-function addMessageToListDOM(text, authorName, color, isoTime) {
-  const wasAtBottom = DOM.messages.scrollTop >= (DOM.messages.scrollHeight - DOM.messages.clientHeight - 20);
-  DOM.messages.appendChild(createMessageElement(text, authorName, color, isoTime));
-  if (wasAtBottom) {
-    DOM.messages.scrollTop = DOM.messages.scrollHeight - DOM.messages.clientHeight;
-  }
-}
-
-// ========== Local storage helpers (per-room) ==========
-function saveMessageToLocal(text, name, color, roomName, isoTime) {
-  try {
-    const key = getRoomStorageKey(roomName);
-    const history = JSON.parse(localStorage.getItem(key) || '[]');
-    history.push({ text, name, color, time: isoTime || new Date().toISOString() });
-    localStorage.setItem(key, JSON.stringify(history));
-  } catch (e) {
-    console.error('Failed saving message locally', e);
-  }
-}
-
-function loadChatHistoryForRoom(roomName) {
-  DOM.messages.innerHTML = '';
-  const key = getRoomStorageKey(roomName);
-  const history = JSON.parse(localStorage.getItem(key) || '[]');
-  history.forEach(item => {
-    addMessageToListDOM(item.text, item.name, item.color, item.time);
-  });
-}
-
-// ========== Scaledrone handling ==========
-function initializeScaledroneAndJoin() {
-  const ownerMode = isOwnerUnlocked();
-  currentUser = ownerMode
-    ? { name: 'Owner/Jericho', color: '#f04747' }
-    : { name: getRandomName(), color: getRandomColor() };
-
-  DOM.userName.textContent = currentUser.name;
-  DOM.userAvatar.textContent = currentUser.name.charAt(0).toUpperCase();
-  DOM.userAvatar.style.backgroundColor = currentUser.color;
-
-  // connect once
+  // connect to Scaledrone (single instance for presence + signaling)
   drone = new ScaleDrone(CLIENT_ID, { data: currentUser });
 
   drone.on('open', err => {
     if (err) {
-      console.error(err);
-      updateConnectionStatus('Error');
+      console.error('Scaledrone open error:', err);
+      myStatusEl.textContent = 'Error connecting';
       return;
     }
-    updateConnectionStatus('Connected');
-    joinRoom(currentRoomName);
-  });
+    myStatusEl.textContent = 'Online';
+    vcStatus.textContent = 'Not connected';
+    console.log('Scaledrone connected:', drone.clientId);
 
-  drone.on('close', () => updateConnectionStatus('Disconnected'));
-  drone.on('error', () => updateConnectionStatus('Error'));
-}
-
-function joinRoom(roomName) {
-  // unsubscribe previous
-  try {
-    if (currentRoom && typeof currentRoom.unsubscribe === 'function') {
-      currentRoom.unsubscribe();
-    }
-  } catch (e) { console.warn('unsubscribe error', e); }
-
-  DOM.channelName.textContent = roomName;
-  loadChatHistoryForRoom(roomName);
-  members = [];
-  updateMembersDOM();
-
-  currentRoom = drone.subscribe(`observable-${roomName}`);
-
-  currentRoom.on('open', err => {
-    if (err) console.error('Room open error', err);
-  });
-
-  currentRoom.on('members', m => {
-    members = m;
-    updateMembersDOM();
-  });
-
-  currentRoom.on('member_join', member => {
-    members.push(member);
-    updateMembersDOM();
-  });
-
-  currentRoom.on('member_leave', ({ id }) => {
-    const i = members.findIndex(x => x.id === id);
-    if (i !== -1) members.splice(i, 1);
-    updateMembersDOM();
-  });
-
-  // single data handler: append & save (this prevents double-appending)
-  currentRoom.on('data', (message, member) => {
-    if (!member) return;
-    const name = member.clientData && member.clientData.name ? member.clientData.name : 'Someone';
-    const color = member.clientData && member.clientData.color ? member.clientData.color : '#5865F2';
-    const text = String(message);
-    const timeIso = new Date().toISOString();
-    addMessageToListDOM(text, name, color, timeIso);
-    saveMessageToLocal(text, name, color, roomName, timeIso);
-  });
-}
-
-// ========== Sending messages (FIXED) ==========
-function sendMessage() {
-  const value = DOM.input.value.trim();
-  if (!value || !drone || !currentRoom) return;
-  DOM.input.value = '';
-  // publish only — DO NOT append/save here (room.on('data') will handle it once)
-  drone.publish({ room: `observable-${currentRoomName}`, message: value });
-}
-
-// ================== AUTO-MUTE SYSTEM ==================
-const nWordRegex = /n[\W_]*i[\W_]*g[\W_]*g[\W_]*a?|n[\W_]*i[\W_]*g[\W_]*g[\W_]*e[\W_]*r?/gi;
-let messageTimestamps = [];
-const SPAM_LIMIT = 5;
-const SPAM_WINDOW = 10000; // 10 seconds
-const SPAM_MUTE_DURATION = 60000; // 1 minute
-const NWORD_MUTE_DURATION = 30000; // 30 seconds
-let mutedUntil = parseInt(localStorage.getItem('mutedUntil')) || 0;
-
-// Override sendMessage to include checks
-const originalSendMessage = sendMessage;
-sendMessage = function() {
-  const now = Date.now();
-
-  // Skip checks if admin
-  if (currentUser && currentUser.name === 'Owner/Jericho') {
-    originalSendMessage();
-    return;
-  }
-
-  // Check if muted
-  if (mutedUntil > now) {
-    alert(`You are muted for another ${Math.ceil((mutedUntil - now)/1000)} seconds.`);
-    return;
-  }
-
-  const value = DOM.input.value.trim();
-  if (!value) return;
-
-  // Check for n-word
-  if (nWordRegex.test(value)) {
-    mutedUntil = now + NWORD_MUTE_DURATION;
-    localStorage.setItem('mutedUntil', mutedUntil);
-    alert('You used a banned word and have been muted for 30 seconds.');
-    DOM.input.value = '';
-    return;
-  }
-
-  // Check spam
-  messageTimestamps.push(now);
-  messageTimestamps = messageTimestamps.filter(ts => now - ts <= SPAM_WINDOW);
-  if (messageTimestamps.length >= SPAM_LIMIT) {
-    mutedUntil = now + SPAM_MUTE_DURATION;
-    localStorage.setItem('mutedUntil', mutedUntil);
-    messageTimestamps = [];
-    alert('You are sending messages too quickly. You have been muted for 1 minute.');
-    return;
-  }
-
-  originalSendMessage();
-};
-
-// ========== Members DOM ==========
-function createMemberSidebarElement(member) {
-  const name = member.clientData && member.clientData.name ? member.clientData.name : 'Unknown';
-  const color = member.clientData && member.clientData.color ? member.clientData.color : '#5865F2';
-
-  const memberEl = document.createElement('div');
-  memberEl.className = 'member-item';
-
-  const avatarEl = document.createElement('div');
-  avatarEl.className = 'member-avatar';
-  avatarEl.style.backgroundColor = color;
-  avatarEl.textContent = name.charAt(0).toUpperCase();
-
-  const infoEl = document.createElement('div');
-  infoEl.className = 'member-info';
-
-  const nameEl = document.createElement('div');
-  nameEl.className = 'member-name';
-  nameEl.textContent = name;
-  if (name === 'Owner/Jericho') {
-    const crown = document.createElement('span');
-    crown.textContent = ' 👑';
-    crown.style.marginLeft = '6px';
-    nameEl.appendChild(crown);
-  }
-
-  const statusEl = document.createElement('div');
-  statusEl.className = 'member-status';
-  statusEl.textContent = 'Online';
-
-  infoEl.appendChild(nameEl);
-  infoEl.appendChild(statusEl);
-  memberEl.appendChild(avatarEl);
-  memberEl.appendChild(infoEl);
-  return memberEl;
-}
-
-function updateMembersDOM() {
-  DOM.membersList.innerHTML = '';
-  DOM.membersListSidebar.innerHTML = '';
-  members.forEach(m => {
-    try {
-      DOM.membersListSidebar.appendChild(createMemberSidebarElement(m));
-      const el = document.createElement('div');
-      el.className = 'member';
-      el.textContent = (m.clientData && m.clientData.name) || 'Unknown';
-      DOM.membersList.appendChild(el);
-    } catch (e) { /* ignore */ }
-  });
-  const count = members.length;
-  DOM.membersCount.textContent = `${count} users in room:`;
-  DOM.membersCountHeader.textContent = `${count} member${count !== 1 ? 's' : ''}`;
-  DOM.membersCountSidebar.textContent = count;
-  DOM.onlineCount.textContent = count;
-}
-
-// ========== Channel switching UI ==========
-function wireChannelItems() {
-  const items = document.querySelectorAll('.channel-item.text-channel');
-  items.forEach(it => {
-    it.addEventListener('click', () => {
-      if (it.classList.contains('active')) return;
-      items.forEach(x => x.classList.remove('active'));
-      it.classList.add('active');
-      const name = it.textContent.trim();
-      currentRoomName = name;
-      joinRoom(currentRoomName);
+    // subscribe to presence room to show members
+    presenceRoom = drone.subscribe(PRESENCE_ROOM);
+    presenceRoom.on('open', () => {
+      console.log('Presence room opened');
     });
+    presenceRoom.on('members', (m) => {
+      renderMembers(m);
+    });
+    presenceRoom.on('member_join', (m) => {
+      // request members list will update via members event sometimes; safe to re-render
+      // scaledrone does not emit members automatically here so we'll fetch by subscribing members event
+      // but for simplicity, rely on 'members' event fired on subscribe
+      // this handler still updates UI by requesting members via presenceRoom (if supported)
+      console.log('member joined', m);
+    });
+    presenceRoom.on('member_leave', (m) => {
+      // re-request members by unsubscribing/resubscribing is heavy; instead keep presence updated via members initial event
+      // Many scaledrone implementations use the members event only. If you find members not updating on join/leave,
+      // consider re-subscribing or using presenceRoom.members if API supports it.
+      setTimeout(() => {
+        // try to fetch current members using a subscribe/resub trick:
+        try {
+          presenceRoom.unsubscribe();
+          presenceRoom = drone.subscribe(PRESENCE_ROOM);
+          presenceRoom.on('members', (mm) => renderMembers(mm));
+        } catch (e) {}
+      }, 300);
+    });
+
+    // ready for voice usage — we don't pre-subscribe to voice rooms (subscribe upon join)
+  });
+
+  drone.on('close', () => {
+    myStatusEl.textContent = 'Disconnected';
+    console.log('Scaledrone closed');
+  });
+
+  drone.on('error', (err) => {
+    myStatusEl.textContent = 'Error';
+    console.error('Scaledrone error', err);
   });
 }
 
-// ========== Event listeners (attach once) ==========
-DOM.form.addEventListener('submit', e => { e.preventDefault(); sendMessage(); });
-DOM.input.addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
-
-// ========== Init ==========
-window.addEventListener('load', () => {
-  wireChannelItems();
-  initializeScaledroneAndJoin();
-  loadChatHistoryForRoom(currentRoomName);
-});
-</script>
-<script>
-// ===================== VOICE CHAT SYSTEM =====================
-
-// voice channel names
-const VOICE_CHANNELS = ["voice-lobby", "gaming-vc", "chill-vc"];
-
-// state
-let voiceDrone = null;
-let voiceRoom = null;
-let currentVoiceRoom = null;
-let localStream = null;
-let peerConnections = {};
-
-// 1️⃣ Start voice system ONLY after text chat is fully connected
-function startVoiceSystem() {
-  voiceDrone = new ScaleDrone(CLIENT_ID, { data: currentUser });
-
-  voiceDrone.on("open", err => {
-    if (err) return console.error("Voice connection error:", err);
-
-    console.log("Voice system connected.");
+// ---------- members UI ----------
+function renderMembers(members) {
+  membersListEl.innerHTML = '';
+  presentCountEl.textContent = members.length;
+  membersCountHeader.textContent = members.length;
+  members.forEach(mem => {
+    const cdata = mem.clientData || {};
+    const name = cdata.name || 'Unknown';
+    const color = cdata.color || '#5865F2';
+    const el = document.createElement('div');
+    el.className = 'member-item';
+    el.innerHTML = `
+      <div class="member-avatar" style="background:${color}">${(name||'U').charAt(0).toUpperCase()}</div>
+      <div style="flex:1">
+        <div class="member-name">${name}</div>
+        <div class="member-presence">Online</div>
+      </div>
+    `;
+    membersListEl.appendChild(el);
   });
 }
 
-// 2️⃣ Join voice channel
-async function joinVoiceChannel(channelName) {
-  // leave old VC first
+// ---------- voice helpers ----------
+function voiceRoomName(room) { return VOICE_ROOM_PREFIX + room; }
+
+async function ensureLocalStream() {
+  if (localStream) return localStream;
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    return localStream;
+  } catch (e) {
+    console.error('Mic error', e);
+    throw e;
+  }
+}
+
+// Create or return RTCPeerConnection for a peerId
+function createPeerConnection(peerId, roomName, initiator = false) {
+  if (pcs[peerId]) return pcs[peerId];
+
+  const pc = new RTCPeerConnection({
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      // Add TURN here for reliability if you have one:
+      // { urls: 'turn:TURN_SERVER:3478', username:'user', credential:'pass' }
+    ]
+  });
+
+  pcs[peerId] = pc;
+
+  // add local tracks
+  if (localStream) localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+
+  // when remote track arrives -> play
+  pc.ontrack = (evt) => {
+    const stream = evt.streams[0];
+    if (!stream) return;
+    let audio = document.getElementById('audio-' + peerId);
+    if (!audio) {
+      audio = document.createElement('audio');
+      audio.id = 'audio-' + peerId;
+      audio.autoplay = true;
+      audioContainer.appendChild(audio);
+    }
+    audio.srcObject = stream;
+  };
+
+  pc.onicecandidate = (ev) => {
+    if (!ev.candidate) return;
+    try {
+      // publish candidate to voice room
+      drone.publish({ room: voiceRoomName(roomName), message: { type:'candidate', candidate: ev.candidate, from: drone.clientId } });
+    } catch (err) {
+      console.warn('publish ice failed', err);
+    }
+  };
+
+  // if initiator -> create offer
+  if (initiator) {
+    pc.createOffer().then(o => pc.setLocalDescription(o).then(() => {
+      drone.publish({ room: voiceRoomName(roomName), message: { type:'offer', sdp: pc.localDescription, from: drone.clientId } });
+    })).catch(e => console.warn('createOffer failed', e));
+  }
+
+  return pc;
+}
+
+// handle signaling messages arriving in voice room
+async function handleVoiceSignal(message, member, roomName) {
+  if (!message) return;
+  const fromId = (message.from || (member && member.id)) ;
+  if (!fromId || fromId === drone.clientId) return;
+
+  // ensure pc exists
+  if (!pcs[fromId]) createPeerConnection(fromId, roomName, false);
+  const pc = pcs[fromId];
+
+  if (message.type === 'offer' && message.sdp) {
+    try {
+      await ensureLocalStream();
+      // attach tracks if not already attached
+      if (localStream) localStream.getTracks().forEach(t => {
+        try { pc.addTrack(t, localStream); } catch(e){}
+      });
+      await pc.setRemoteDescription(new RTCSessionDescription(message.sdp));
+      const ans = await pc.createAnswer();
+      await pc.setLocalDescription(ans);
+      drone.publish({ room: voiceRoomName(roomName), message: { type:'answer', sdp: pc.localDescription, from: drone.clientId } });
+    } catch (e) { console.error('handle offer failed', e); }
+  } else if (message.type === 'answer' && message.sdp) {
+    try {
+      await pc.setRemoteDescription(new RTCSessionDescription(message.sdp));
+    } catch (e) { console.error('setRemoteDesc error', e); }
+  } else if (message.type === 'candidate' && message.candidate) {
+    try {
+      await pc.addIceCandidate(new RTCIceCandidate(message.candidate));
+    } catch (e) { console.warn('addIceCandidate failed', e); }
+  }
+}
+
+// join a voice channel (click handler will call toggleJoinVoice)
+async function joinVoiceChannel(roomName) {
+  // if already joined same channel -> toggle leave
+  if (joinedChannel === roomName) {
+    leaveVoiceChannel();
+    return;
+  }
+
+  // leave previous
   leaveVoiceChannel();
 
-  currentVoiceRoom = channelName;
-  console.log(`Joining VC: ${channelName}`);
-
-  try {
-    // ask for mic
-    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  } catch (err) {
-    alert("Microphone permission denied.");
+  // ensure presence of Scaledrone
+  if (!drone) {
+    alert('Signaling not ready. Try again momentarily.');
     return;
   }
 
-  // subscribe AFTER voiceDrone is connected
-  voiceRoom = voiceDrone.subscribe(`observable-voice-${channelName}`);
-
-  voiceRoom.on("open", () => {
-    console.log("Voice room opened:", channelName);
-  });
-
-  // existing members
-  voiceRoom.on("members", members => {
-    members.forEach(m => {
-      if (m.id !== voiceDrone.clientId) createPeer(m.id, true);
-    });
-  });
-
-  // new join
-  voiceRoom.on("member_join", member => {
-    if (member.id !== voiceDrone.clientId) createPeer(member.id, true);
-  });
-
-  // leave
-  voiceRoom.on("member_leave", member => {
-    if (peerConnections[member.id]) {
-      peerConnections[member.id].close();
-      delete peerConnections[member.id];
-    }
-  });
-
-  // receive WebRTC signals
-  voiceRoom.on("data", (data, member) => {
-    if (!member || member.id === voiceDrone.clientId) return;
-
-    const pc = peerConnections[member.id];
-    if (!pc) return;
-
-    if (data.sdp) {
-      pc.setRemoteDescription(new RTCSessionDescription(data.sdp)).then(() => {
-        if (data.sdp.type === "offer") {
-          pc.createAnswer().then(answer => {
-            pc.setLocalDescription(answer);
-            voiceRoom.publish({ message: { sdp: answer } });
-          });
-        }
-      });
-    } else if (data.candidate) {
-      pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-    }
-  });
-
-  highlightActiveVoiceChannel(channelName);
-}
-
-// 3️⃣ Create peer connection
-function createPeer(id, isOffer) {
-  const pc = new RTCPeerConnection({
-    iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
-  });
-
-  peerConnections[id] = pc;
-
-  // send mic audio
-  localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-
-  // receive remote audio
-  pc.ontrack = event => {
-    const audio = document.createElement("audio");
-    audio.autoplay = true;
-    audio.srcObject = event.streams[0];
-  };
-
-  // send ICE
-  pc.onicecandidate = event => {
-    if (event.candidate) {
-      voiceRoom.publish({ message: { candidate: event.candidate } });
-    }
-  };
-
-  // if making the offer
-  if (isOffer) {
-    pc.createOffer().then(offer => {
-      pc.setLocalDescription(offer);
-      voiceRoom.publish({ message: { sdp: offer } });
-    });
+  // request mic
+  try {
+    await ensureLocalStream();
+  } catch (e) {
+    alert('Microphone permission required to join voice.');
+    return;
   }
+
+  joinedChannel = roomName;
+  headerTitle.textContent = roomName;
+  vcStatus.textContent = 'Connecting...';
+
+  // subscribe to the voice observable room
+  voiceRoom = drone.subscribe(voiceRoomName(roomName));
+
+  voiceRoom.on('open', (err) => {
+    if (err) console.error('voiceRoom open', err);
+  });
+
+  // existing members (create peer with each)
+  voiceRoom.on('members', (members) => {
+    members.forEach(m => {
+      if (m.id === drone.clientId) return;
+      createPeerConnection(m.id, roomName, true);
+    });
+  });
+
+  voiceRoom.on('member_join', (member) => {
+    if (member.id === drone.clientId) return;
+    createPeerConnection(member.id, roomName, true);
+  });
+
+  voiceRoom.on('member_leave', (member) => {
+    if (pcs[member.id]) {
+      try { pcs[member.id].close(); } catch (e) {}
+      delete pcs[member.id];
+      const audEl = document.getElementById('audio-' + member.id); if (audEl) audEl.remove();
+    }
+  });
+
+  voiceRoom.on('data', (message, member) => {
+    handleVoiceSignal(message, member, roomName);
+  });
+
+  vcStatus.textContent = 'Connected to ' + roomName;
+  // highlight active
+  document.querySelectorAll('.voice-channel').forEach(el => el.classList.remove('active'));
+  const el = document.querySelector('.voice-channel[vc="'+roomName+'"]');
+  if (el) el.classList.add('active');
 }
 
-// 4️⃣ Leave voice channel
 function leaveVoiceChannel() {
+  if (voiceRoom) {
+    try { drone.unsubscribe(voiceRoomName(joinedChannel)); } catch(e){}
+    voiceRoom = null;
+  }
+  // stop tracks
   if (localStream) {
-    localStream.getTracks().forEach(t => t.stop());
+    localStream.getTracks().forEach(t => { try { t.stop(); } catch(e){} });
     localStream = null;
   }
+  // close peers and remove audio tags
+  Object.keys(pcs).forEach(k => {
+    try { pcs[k].close(); } catch(e){}
+    const a = document.getElementById('audio-'+k); if (a) a.remove();
+    delete pcs[k];
+  });
 
-  if (voiceRoom) voiceRoom.unsubscribe();
+  joinedChannel = null;
+  headerTitle.textContent = 'No voice channel selected';
+  vcStatus.textContent = 'Not connected';
 
-  Object.values(peerConnections).forEach(pc => pc.close());
-  peerConnections = {};
-  currentVoiceRoom = null;
-
-  clearVoiceHighlights();
+  // clear active highlight
+  document.querySelectorAll('.voice-channel').forEach(el => el.classList.remove('active'));
 }
 
-// 5️⃣ UI helpers
-function highlightActiveVoiceChannel(name) {
-  clearVoiceHighlights();
-  document
-    .querySelector(`.voice-channel[vc='${name}']`)
-    ?.classList.add("active");
+// toggles join/leave when clicking the channel
+function toggleJoinVoice(name) {
+  joinVoiceChannel(name).catch(e => {
+    console.error('joinVoiceChannel failed', e);
+    alert('Failed to join voice channel: ' + (e && e.message ? e.message : 'Unknown'));
+  });
 }
 
-function clearVoiceHighlights() {
-  document.querySelectorAll(".voice-channel").forEach(el =>
-    el.classList.remove("active")
-  );
+// convenience: leave via button
+function leaveVoiceIfJoined() { if (joinedChannel) leaveVoiceChannel(); }
+
+// optional: join last channel if available
+function promptJoinLast() {
+  if (!joinedChannel && VOICE_CHANNELS.length) {
+    joinVoiceChannel(VOICE_CHANNELS[0]);
+  } else if (joinedChannel) {
+    leaveVoiceChannel();
+  }
 }
 
-// 6️⃣ Start voice AFTER text chat user is created
-// MODIFY your existing init:
-window.addEventListener("load", () => {
-  wireChannelItems();
-  initializeScaledroneAndJoin();
-  loadChatHistoryForRoom(currentRoomName);
+// ensure we init on load
+window.addEventListener('load', () => {
+  // basic check
+  if (CLIENT_ID === "YOUR_SCALEDONE_CHANNEL_ID") {
+    alert('Please replace CLIENT_ID in the HTML with your Scaledrone channel ID before using voice features.');
+  }
 
-  // wait 800ms to guarantee currentUser exists
-  setTimeout(startVoiceSystem, 800);
+  try { init(); } catch (e) { console.error('init error', e); }
 });
 </script>
+
+</body>
+</html>
