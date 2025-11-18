@@ -628,50 +628,65 @@ window.addEventListener('load', () => {
 });
 </script>
 <script>
+// ===================== VOICE CHAT SYSTEM =====================
+
+// voice channel names
 const VOICE_CHANNELS = ["voice-lobby", "gaming-vc", "chill-vc"];
 
-let currentVoiceRoom = null;
-let localStream = null;
+// state
 let voiceDrone = null;
 let voiceRoom = null;
+let currentVoiceRoom = null;
+let localStream = null;
 let peerConnections = {};
 
-// Start Scaledrone voice system
-function initVoiceSystem() {
+// 1️⃣ Start voice system ONLY after text chat is fully connected
+function startVoiceSystem() {
   voiceDrone = new ScaleDrone(CLIENT_ID, { data: currentUser });
 
   voiceDrone.on("open", err => {
-    if (err) return console.error("Voice Scaledrone error:", err);
-    console.log("Voice system connected");
+    if (err) return console.error("Voice connection error:", err);
+
+    console.log("Voice system connected.");
   });
 }
 
-async function joinVoiceChannel(name) {
-  // Leave existing VC
+// 2️⃣ Join voice channel
+async function joinVoiceChannel(channelName) {
+  // leave old VC first
   leaveVoiceChannel();
 
-  currentVoiceRoom = name;
+  currentVoiceRoom = channelName;
+  console.log(`Joining VC: ${channelName}`);
 
-  // Get mic
-  localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  try {
+    // ask for mic
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (err) {
+    alert("Microphone permission denied.");
+    return;
+  }
 
-  // Join observable room
-  voiceRoom = voiceDrone.subscribe(`observable-voice-${name}`);
+  // subscribe AFTER voiceDrone is connected
+  voiceRoom = voiceDrone.subscribe(`observable-voice-${channelName}`);
 
+  voiceRoom.on("open", () => {
+    console.log("Voice room opened:", channelName);
+  });
+
+  // existing members
   voiceRoom.on("members", members => {
     members.forEach(m => {
-      if (m.id !== voiceDrone.clientId) {
-        makePeer(m.id, true);
-      }
+      if (m.id !== voiceDrone.clientId) createPeer(m.id, true);
     });
   });
 
+  // new join
   voiceRoom.on("member_join", member => {
-    if (member.id !== voiceDrone.clientId) {
-      makePeer(member.id, true);
-    }
+    if (member.id !== voiceDrone.clientId) createPeer(member.id, true);
   });
 
+  // leave
   voiceRoom.on("member_leave", member => {
     if (peerConnections[member.id]) {
       peerConnections[member.id].close();
@@ -679,67 +694,102 @@ async function joinVoiceChannel(name) {
     }
   });
 
-  voiceRoom.on("data", (msg, member) => {
+  // receive WebRTC signals
+  voiceRoom.on("data", (data, member) => {
     if (!member || member.id === voiceDrone.clientId) return;
 
     const pc = peerConnections[member.id];
     if (!pc) return;
 
-    if (msg.sdp) {
-      pc.setRemoteDescription(new RTCSessionDescription(msg.sdp)).then(() => {
-        if (msg.sdp.type === "offer") {
+    if (data.sdp) {
+      pc.setRemoteDescription(new RTCSessionDescription(data.sdp)).then(() => {
+        if (data.sdp.type === "offer") {
           pc.createAnswer().then(answer => {
-            pc.setLocalDescription(answer).then(() => {
-              voiceRoom.publish({ message: { sdp: answer } });
-            });
+            pc.setLocalDescription(answer);
+            voiceRoom.publish({ message: { sdp: answer } });
           });
         }
       });
-    } else if (msg.candidate) {
-      pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
+    } else if (data.candidate) {
+      pc.addIceCandidate(new RTCIceCandidate(data.candidate));
     }
   });
+
+  highlightActiveVoiceChannel(channelName);
 }
 
-function makePeer(id, initiator) {
+// 3️⃣ Create peer connection
+function createPeer(id, isOffer) {
   const pc = new RTCPeerConnection({
     iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
   });
 
   peerConnections[id] = pc;
 
-  localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+  // send mic audio
+  localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
 
+  // receive remote audio
   pc.ontrack = event => {
     const audio = document.createElement("audio");
-    audio.srcObject = event.streams[0];
     audio.autoplay = true;
+    audio.srcObject = event.streams[0];
   };
 
+  // send ICE
   pc.onicecandidate = event => {
     if (event.candidate) {
       voiceRoom.publish({ message: { candidate: event.candidate } });
     }
   };
 
-  if (initiator) {
+  // if making the offer
+  if (isOffer) {
     pc.createOffer().then(offer => {
-      pc.setLocalDescription(offer).then(() => {
-        voiceRoom.publish({ message: { sdp: offer } });
-      });
+      pc.setLocalDescription(offer);
+      voiceRoom.publish({ message: { sdp: offer } });
     });
   }
 }
 
+// 4️⃣ Leave voice channel
 function leaveVoiceChannel() {
   if (localStream) {
     localStream.getTracks().forEach(t => t.stop());
     localStream = null;
   }
+
+  if (voiceRoom) voiceRoom.unsubscribe();
+
   Object.values(peerConnections).forEach(pc => pc.close());
   peerConnections = {};
   currentVoiceRoom = null;
+
+  clearVoiceHighlights();
 }
 
-window.addEventListener("load", initVoiceSystem);
+// 5️⃣ UI helpers
+function highlightActiveVoiceChannel(name) {
+  clearVoiceHighlights();
+  document
+    .querySelector(`.voice-channel[vc='${name}']`)
+    ?.classList.add("active");
+}
+
+function clearVoiceHighlights() {
+  document.querySelectorAll(".voice-channel").forEach(el =>
+    el.classList.remove("active")
+  );
+}
+
+// 6️⃣ Start voice AFTER text chat user is created
+// MODIFY your existing init:
+window.addEventListener("load", () => {
+  wireChannelItems();
+  initializeScaledroneAndJoin();
+  loadChatHistoryForRoom(currentRoomName);
+
+  // wait 800ms to guarantee currentUser exists
+  setTimeout(startVoiceSystem, 800);
+});
 </script>
