@@ -1,241 +1,149 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Simple WebRTC Voice Chat</title>
+<meta charset="UTF-8">
+<title>Guaranteed Working WebRTC Voice</title>
+<script src="https://cdn.scaledrone.com/scaledrone.min.js"></script>
 <style>
-  body { font-family: Arial; background:#111; color:white; display:flex; flex-direction:column; align-items:center; padding-top:40px; }
-  button { padding:10px 20px; margin:10px; border:none; background:#5865F2; color:white; font-size:16px; border-radius:6px; cursor:pointer; }
-  button.red { background:#d9534f; }
-  button.gray { background:#444; }
+body { background:#222; color:white; font-family:sans-serif; padding:20px; }
+button { padding:10px 15px; border:none; border-radius:5px; background:#5865F2; color:white; cursor:pointer; }
 </style>
 </head>
 <body>
 
-<h1>Voice Chat Room</h1>
+<h2>Stable WebRTC Voice Test</h2>
 
-<button id="joinBtn">Join Voice Chat</button>
-<button id="leaveBtn" class="red" style="display:none;">Leave</button>
-<button id="muteBtn" class="gray" style="display:none;">Mute</button>
+<button id="startBtn">Start Voice</button>
+<button id="muteBtn" disabled>Mute</button>
 
-<p id="status">Not connected</p>
+<p id="status">Idle</p>
+
+<div id="audioZone"></div>
 
 <script>
-/*-----------------------------------------------------
-  CONFIG
-------------------------------------------------------*/
-const CHANNEL_ID = "YstSSj9UMw4xqYdB"; // <-- REPLACE THIS
-const ROOM_NAME = "voice-room";
+const CHANNEL_ID = "TnDePK63MJquB3ns";
+const ROOM_NAME  = "stable-webrtc-room";
 
-/*-----------------------------------------------------
-  STATE
-------------------------------------------------------*/
-let drone;
-let room;
-let clientId = Math.random().toString(36).substr(2, 9);
-
-let localStream = null;
-let peers = {};
-let audioElements = {};
-let joined = false;
+let drone, room;
+let pc;
+let localStream;
+let makingOffer = false;
+let ignoreOffer = false;
+let polite = false;
 let muted = false;
 
-/*-----------------------------------------------------
-  DOM
-------------------------------------------------------*/
-const joinBtn  = document.getElementById("joinBtn");
-const leaveBtn = document.getElementById("leaveBtn");
-const muteBtn  = document.getElementById("muteBtn");
-const statusEl = document.getElementById("status");
-
-/*-----------------------------------------------------
-  HELPERS
-------------------------------------------------------*/
-function logStatus(t){ statusEl.innerText = t; }
-
-function sendSignal(data){
-  drone.publish({
-    room: ROOM_NAME,
-    message: { clientId, ...data }
-  });
-}
-
-function createAudio(id){
-  const audio = document.createElement("audio");
-  audio.autoplay = true;
-  audio.playsInline = true;
-  audio.style.display = "none";
-  document.body.appendChild(audio);
-  audioElements[id] = audio;
-  return audio;
-}
-
-/*-----------------------------------------------------
-  WebRTC Peer Setup
-------------------------------------------------------*/
-function createPeer(id){
-  const pc = new RTCPeerConnection({
-    iceServers:[ { urls:"stun:stun.l.google.com:19302" } ]
-  });
-
-  peers[id] = pc;
-
-  // Add local audio tracks
-  localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
-
-  // Incoming audio track
-  pc.ontrack = e => {
-    let audio = audioElements[id] || createAudio(id);
-    audio.srcObject = e.streams[0];
-  };
-
-  // Send ICE candidates
-  pc.onicecandidate = e => {
-    if (e.candidate){
-      sendSignal({ type:"candidate", to:id, candidate:e.candidate });
-    }
-  };
-
-  return pc;
-}
-
-/*-----------------------------------------------------
-  Joining the chat
-------------------------------------------------------*/
-async function joinChat(){
-  if (joined) return;
-
-  logStatus("Requesting microphone...");
-  localStream = await navigator.mediaDevices.getUserMedia({ audio:true });
-
-  logStatus("Connecting to Scaledrone...");
-  drone = new Scaledrone(CHANNEL_ID, { data:{ clientId } });
-
-  drone.on("open", error => {
-    if (error){
-      alert("Scaledrone error: " + error);
-      return;
+// ------------ START ------------
+document.getElementById("startBtn").onclick = async () => {
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia({ audio:true });
+    } catch (e) {
+        alert("Mic blocked");
+        return;
     }
 
-    logStatus("Connected. Joining room...");
+    initSignaling();
+};
 
+// ------------ SIGNALING ------------
+function initSignaling() {
+    drone = new ScaleDrone(CHANNEL_ID);
+
+    drone.on("open", err => {
+        if (err) return console.error(err);
+        joinRoom();
+    });
+}
+
+function joinRoom() {
     room = drone.subscribe(ROOM_NAME);
 
-    room.on("open", () => logStatus("Joined voice room."));
-
-    // Signal handler
-    room.on("data", async (msg, member) => {
-      if (msg.clientId === clientId) return; // ignore self
-      handleSignal(msg);
-    });
-
-    // For each existing user, create offer
     room.on("members", members => {
-      members.forEach(m => {
-        if (!m.clientData) return;
-        const id = m.clientData.clientId;
-        if (id !== clientId){
-          createOffer(id);
-        }
-      });
+        polite = members.length === 2;
+        createPeer();
     });
-  });
 
-  joinBtn.style.display = "none";
-  leaveBtn.style.display = "inline-block";
-  muteBtn.style.display = "inline-block";
-  joined = true;
+    room.on("data", (msg, member) => {
+        if (!member) return;
+        if (member.id === drone.clientId) return;
+        handleSignal(msg);
+    });
 }
 
-/*-----------------------------------------------------
-  Leaving the chat
-------------------------------------------------------*/
-function leaveChat(){
-  if (!joined) return;
-  logStatus("Left voice chat.");
+// ------------ PEER SETUP ------------
+function createPeer() {
+    pc = new RTCPeerConnection({
+        iceServers:[
+            {urls:'stun:stun.l.google.com:19302'},
+            {urls:'turn:numb.viagenie.ca', username:'webrtc@live.com', credential:'muazkh'}
+        ]
+    });
 
-  // stop audio
-  localStream.getTracks().forEach(t => t.stop());
+    localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
 
-  // close connections
-  Object.values(peers).forEach(pc => pc.close());
-  peers = {};
+    pc.ontrack = e => {
+        const audio = document.createElement("audio");
+        audio.autoplay = true;
+        audio.srcObject = e.streams[0];
+        document.getElementById("audioZone").appendChild(audio);
+    };
 
-  // remove remote audio
-  Object.values(audioElements).forEach(a => a.remove());
-  audioElements = {};
+    pc.onicecandidate = e => {
+        if (e.candidate) sendSignal({candidate:e.candidate});
+    };
 
-  try { drone.close(); } catch(e){}
+    pc.onnegotiationneeded = async () => {
+        try {
+            makingOffer = true;
+            await pc.setLocalDescription(await pc.createOffer());
+            sendSignal({description:pc.localDescription});
+        } finally {
+            makingOffer = false;
+        }
+    };
 
-  joinBtn.style.display = "inline-block";
-  leaveBtn.style.display = "none";
-  muteBtn.style.display = "none";
-  joined = false;
+    document.getElementById("muteBtn").disabled = false;
+    document.getElementById("status").textContent = "Ready";
 }
 
-/*-----------------------------------------------------
-  Mute / Unmute
-------------------------------------------------------*/
-function toggleMute(){
-  muted = !muted;
-  localStream.getAudioTracks().forEach(t => t.enabled = !muted);
-  muteBtn.innerText = muted ? "Unmute" : "Mute";
+// ------------ SIGNAL HANDLING ------------
+async function handleSignal(msg) {
+    const {description, candidate} = msg;
+
+    try {
+        if (description) {
+            const offerCollision =
+                description.type === "offer" &&
+                (makingOffer || pc.signalingState !== "stable");
+
+            ignoreOffer = !polite && offerCollision;
+            if (ignoreOffer) return;
+
+            await pc.setRemoteDescription(description);
+
+            if (description.type === "offer") {
+                await pc.setLocalDescription(await pc.createAnswer());
+                sendSignal({description:pc.localDescription});
+            }
+        } else if (candidate) {
+            if (!ignoreOffer)
+                await pc.addIceCandidate(candidate);
+        }
+    } catch (e) {
+        console.error("Signal error:", e);
+    }
 }
 
-/*-----------------------------------------------------
-  WebRTC Signaling Logic
-------------------------------------------------------*/
-async function createOffer(target){
-  const pc = createPeer(target);
-
-  const offer = await pc.createOffer();
-  await pc.setLocalDescription(offer);
-
-  sendSignal({
-    type:"offer",
-    to:target,
-    sdp:pc.localDescription
-  });
+function sendSignal(msg) {
+    drone.publish({room:ROOM_NAME, message:msg});
 }
 
-async function handleSignal(msg){
-  const { type, clientId:sender, sdp, candidate, to } = msg;
-
-  if (to && to !== clientId) return;
-
-  switch(type){
-    case "offer":
-      const pcOffer = createPeer(sender);
-      await pcOffer.setRemoteDescription(new RTCSessionDescription(sdp));
-      const answer = await pcOffer.createAnswer();
-      await pcOffer.setLocalDescription(answer);
-      sendSignal({ type:"answer", to:sender, sdp:pcOffer.localDescription });
-      break;
-
-    case "answer":
-      const pcAnswer = peers[sender];
-      if (!pcAnswer) return;
-      await pcAnswer.setRemoteDescription(new RTCSessionDescription(sdp));
-      break;
-
-    case "candidate":
-      const pcCand = peers[sender];
-      if (!pcCand) return;
-      try { await pcCand.addIceCandidate(new RTCIceCandidate(candidate)); }
-      catch(e){}
-      break;
-  }
-}
-
-/*-----------------------------------------------------
-  BUTTON EVENTS
-------------------------------------------------------*/
-joinBtn.onclick  = joinChat;
-leaveBtn.onclick = leaveChat;
-muteBtn.onclick  = toggleMute;
-
+// ------------ MUTE ------------
+document.getElementById("muteBtn").onclick = () => {
+    muted = !muted;
+    localStream.getAudioTracks()[0].enabled = !muted;
+    document.getElementById("muteBtn").textContent = muted ? "Unmute" : "Mute";
+};
 </script>
-<script src="https://cdn.scaledrone.com/scaledrone.min.js"></script>
+
 </body>
 </html>
