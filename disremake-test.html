@@ -468,39 +468,55 @@ function sendMessage() {
   drone.publish({ room: `observable-${currentRoomName}`, message: value });
 }
 
-// ================= FULL ULTRA-WORD FILTER + AUTO-MUTE =================
+// =================== EXTREME WORD FILTER + AUTO MUTE ===================
 
-// This function allows detection like "f.u.c.k", "f u c k", "f*ck".
+// Helper: detect "f.u.c.k", "f u c k", "f*ck", etc
 const ob = w => w.split("").join("[\\W_]*");
 
-// Mild profanity → censored (****) but still sends
+// Words that get censored (****) but still allowed to send
 const SOFT_WORDS = [
   "fuck","shit","bitch","ass","bastard","hell","damn","crap","piss","dumb","stupid",
-  "hoe","slut","skank","dick","pussy","cock","balls","wank","jerk"
+  "hoe","slut","skank","dick","pussy","cock","balls","jerk","wank","whore",
+  "mf","mfk","idiot","retard","loser"
 ];
 
-// NSFW, slurs, hate speech, self-harm, gore → BLOCK + AUTO MUTE
+// HARD BLOCK (mute + block)
+// Includes: slurs, sexual violence, extreme NSFW, gore, drugs, threats
 const HARD_WORDS = [
-  // slurs (racial, homophobic, etc.)
-  "nigger","nigga","kike","chink","spic","beaner","wetback","fag","faggot","dyke",
-  "tranny","retard","autist","gook","sandnigger",
+  // ----- SEXUAL VIOLENCE -----
+  "rape","r a p e","r@pe","grape","sexual assault","molest","molestation","pedophile",
+  "pedo","cp","child porn","groom","grooming","sex traffic","trafficking",
 
-  // nsfw / sexual explicit
-  "porn","sex","hentai","anal","dildo","cum","semen","nudes","deepthroat","69",
-  "bbw","milf","bdsm","fetish","orgasm","blowjob","handjob","jerkoff",
+  // ----- SLURS -----
+  "nigger","nigga","ching","chink","spic","kike","beaner","wetback","gook","porchmonkey",
+  "sandnigger","towelhead","raghead","tranny","faggot","fag","dyke","queer",
+  "retard","autist","cripple",
 
-  // gore / self harm / violence
-  "killmyself","kms","suicide","selfharm","kys","cutting","murder","bloodbath",
+  // ----- HARD NSFW -----
+  "porn","hentai","incest","bestiality","beastiality","zoophilia",
+  "bdsm","deepthroat","cum","semen","orgasm","pov","69","handjob","blowjob",
+  "jerkoff","milf","daddy fetish","mommy fetish","explicit",
 
-  // drugs
-  "cocaine","heroin","meth","weed","lsd","molly","ecstasy","shrooms"
+  // ----- SELF-HARM / SUICIDE -----
+  "kys","kill yourself","kms","suicide","self harm","self-harm","cutting","hang myself",
+  "shoot myself","die soon","end my life",
+
+  // ----- VIOLENCE / THREATS -----
+  "murder","bloodbath","slaughter","kill you","kill him","kill her",
+  "bomb","bombing","massacre","school shooting","shoot up","stab you","stab him",
+
+  // ----- DRUGS -----
+  "cocaine","heroin","meth","fentanyl","weed","marijuana","molly",
+  "lsd","acid","shrooms","ketamine","opioid","opium","crack",
+
+  // ----- EXTREMISM -----
+  "isis","white power","kkk","heil hitler","nazi","neo nazi","terrorist",
 ];
 
-// Build regex patterns that match obfuscation
 const softRegex = new RegExp(SOFT_WORDS.map(ob).join("|"), "gi");
 const hardRegex = new RegExp(HARD_WORDS.map(ob).join("|"), "gi");
 
-// Spam control
+// Spam detection
 let msgTimes = [];
 const SPAM_MAX = 6;
 const SPAM_TIME = 7000;
@@ -520,44 +536,46 @@ sendMessage = function () {
     return;
   }
 
-  // Muted check
+  // User muted
   if (mutedUntil > now) {
-    alert(`❌ Still muted for ${Math.ceil((mutedUntil - now) / 1000)} sec.`);
+    alert(`❌ Muted for ${Math.ceil((mutedUntil - now) / 1000)} sec.`);
     return;
   }
 
   let text = DOM.input.value.trim();
   if (!text) return;
 
-  // HARD FILTER → block message + 1 min mute
-  if (hardRegex.test(text.toLowerCase())) {
+  const lower = text.toLowerCase();
+
+  // HARD BLOCK → mute + block
+  if (hardRegex.test(lower)) {
     mutedUntil = now + MUTE_HARD;
     localStorage.setItem("mutedUntil", mutedUntil);
-    alert("❌ Message blocked. NSFW, slurs or harmful content detected. Muted for 1 minute.");
+    alert("❌ MESSAGE BLOCKED.\nSevere banned content detected. Muted for 1 minute.");
     DOM.input.value = "";
     return;
   }
 
-  // SOFT FILTER → censor ****
-  if (softRegex.test(text.toLowerCase())) {
+  // SOFT BLOCK → censor but allow
+  if (softRegex.test(lower)) {
     text = text.replace(softRegex, "****");
   }
 
-  // Spam detection
+  // Spam prevention
   msgTimes.push(now);
   msgTimes = msgTimes.filter(t => now - t < SPAM_TIME);
 
   if (msgTimes.length >= SPAM_MAX) {
     mutedUntil = now + MUTE_SPAM;
     localStorage.setItem("mutedUntil", mutedUntil);
-    alert("❌ Muted for spamming (1 minute).");
+    alert("❌ Spam detected. Muted for 1 minute.");
     return;
   }
 
   DOM.input.value = text;
   SEND_ORIG();
 };
-
+  
 // ========== Members DOM ==========
 function createMemberSidebarElement(member) {
   const name = member.clientData && member.clientData.name ? member.clientData.name : 'Unknown';
