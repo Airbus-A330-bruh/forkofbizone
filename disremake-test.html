@@ -90,22 +90,24 @@ const roomIdEl=document.getElementById('roomId');
 const channelList=document.getElementById('channelList');
 
 let drone=null;
-let observers={}; // {channelName: observerRoom}
 let currentRoom='general';
 let isJoined=false;
 let isMuted=false;
 let localStream=null;
 let clientId=null;
-let membersMap={}; // {channelName: [{id,name,joined,muted}]}
+let membersMap={
+  general:[], gaming:[], lobby:[], music:[]
+};
+let peers={}; // WebRTC peers
 
 // --- Helpers ---
 function shortId(){ return Math.random().toString(36).substring(2,9); }
 function setConn(text){ connStatus.textContent=text; }
 
-// Render participants of current room
+// Render participants
 function renderParticipants(){
   participantsEl.innerHTML='';
-  const members = membersMap[currentRoom]||[];
+  const members = membersMap[currentRoom] || [];
   memberCountEl.textContent = members.length;
 
   members.forEach(m=>{
@@ -114,7 +116,7 @@ function renderParticipants(){
     div.innerHTML=`
       <div class="avatar">${(m.name||'U').slice(0,2).toUpperCase()}</div>
       <div class="pmeta">
-        <div class="pname">${m.name||('User-'+m.id.slice(0,4))}</div>
+        <div class="pname">${m.name}</div>
         <div class="pstatus">${m.joined ? (m.muted?'muted':'speaking') : 'not joined'}</div>
       </div>
     `;
@@ -122,9 +124,8 @@ function renderParticipants(){
   });
 }
 
-// Connect observer to a channel
+// Connect observer to channel
 function connectObserver(channel){
-  if(observers[channel]) return;
   if(!drone) drone = new ScaleDrone(CHANNEL_ID,{data:{name:displayNameInput.value||('Guest-'+shortId())}});
   drone.on('open', ()=>{ clientId=drone.clientId; setConn('connected'); });
 
@@ -139,22 +140,6 @@ function connectObserver(channel){
     if(channel===currentRoom) renderParticipants();
   });
 
-  // Join/Leave message handling
-  observer.on('data', (message, member)=>{
-    if(!message || !member) return;
-    const members = membersMap[channel]||[];
-    if(message.type==='joined'){
-      const idx = members.findIndex(m=>m.id===message.id);
-      if(idx>=0) members[idx].joined = true;
-      else members.push({id:message.id,name:member.clientData?.name||'User-'+message.id.slice(0,4),joined:true,muted:false});
-      renderParticipants();
-    } else if(message.type==='left'){
-      const idx = members.findIndex(m=>m.id===message.id);
-      if(idx>=0) members[idx].joined = false;
-      renderParticipants();
-    }
-  });
-
   observer.on('member_join', m=>{
     if(!membersMap[channel]) membersMap[channel]=[];
     membersMap[channel].push({id:m.id,name:m.clientData?.name||'User-'+m.id.slice(0,4),joined:false,muted:false});
@@ -166,36 +151,102 @@ function connectObserver(channel){
     if(channel===currentRoom) renderParticipants();
   });
 
-  observers[channel]=observer;
+  // Handle join/leave messages
+  observer.on('data',(message,member)=>{
+    if(!message || !member) return;
+    const members = membersMap[channel]||[];
+    if(message.type==='joined'){
+      let me = members.find(x=>x.id===message.id);
+      if(me) me.joined=true;
+      else members.push({id:message.id,name:member.clientData?.name||'User-'+message.id.slice(0,4),joined:true,muted:false});
+      if(channel===currentRoom) renderParticipants();
+    } else if(message.type==='left'){
+      let me = members.find(x=>x.id===message.id);
+      if(me) me.joined=false;
+      if(channel===currentRoom) renderParticipants();
+    }
+  });
 }
 
-// Join voice
+// --- WebRTC ---
+function createPeerConnection(peerId){
+  if(peers[peerId]) return peers[peerId];
+  const pc = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+  peers[peerId]={pc, audioEl:null};
+
+  // Add local tracks
+  if(localStream) localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
+
+  pc.onicecandidate = e=>{
+    if(e.candidate) drone.publish({room:'observable-'+currentRoom,message:{type:'candidate',id:peerId,candidate:e.candidate}});
+  };
+  pc.ontrack = e=>{
+    const stream = e.streams[0] || new MediaStream(e.track?[e.track]:[]);
+    let audio = document.createElement('audio');
+    audio.autoplay=true; audio.srcObject=stream; audio.style.display='none';
+    document.body.appendChild(audio);
+    peers[peerId].audioEl=audio;
+  };
+  return pc;
+}
+
+// Offer
+async function createOffer(peerId){
+  const pc = createPeerConnection(peerId);
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  drone.publish({room:'observable-'+currentRoom,message:{type:'offer',id:peerId,sdp:offer}});
+}
+
+// Join room (voice)
 async function joinRoom(){
   if(isJoined) return;
   try{
     localStream = await navigator.mediaDevices.getUserMedia({audio:true,video:false});
     isJoined=true; isMuted=false; micStateEl.textContent='on';
     joinBtn.style.display='none'; leaveBtn.style.display=''; toggleMuteBtn.style.display='';
-    // mark yourself joined
+    // Mark self joined
     const members = membersMap[currentRoom]||[];
     const idx = members.findIndex(m=>m.id===clientId);
-    if(idx>=0){ members[idx].joined=true; members[idx].muted=false; }
+    if(idx>=0) members[idx].joined=true;
     else members.push({id:clientId,name:displayNameInput.value||'You',joined:true,muted:false});
-    // broadcast joined
     drone.publish({room:'observable-'+currentRoom,message:{type:'joined',id:clientId}});
     renderParticipants();
-  }catch(e){ alert('Mic access required'); console.error(e); setConn('mic blocked'); }
+
+    // Listen for offers
+    drone.subscribe('observable-'+currentRoom).on('data',(message,member)=>{
+      if(!message || !member) return;
+      if(member.id===clientId) return;
+      const pc = createPeerConnection(member.id);
+      if(message.type==='offer'){
+        pc.setRemoteDescription(new RTCSessionDescription(message.sdp))
+          .then(()=>pc.createAnswer())
+          .then(answer=>pc.setLocalDescription(answer))
+          .then(()=> drone.publish({room:'observable-'+currentRoom,message:{type:'answer',id:member.id,sdp:pc.localDescription}}));
+      } else if(message.type==='answer'){
+        pc.setRemoteDescription(new RTCSessionDescription(message.sdp));
+      } else if(message.type==='candidate'){
+        pc.addIceCandidate(new RTCIceCandidate(message.candidate)).catch(()=>{});
+      }
+    });
+  }catch(e){ alert('Mic required'); console.error(e); setConn('mic blocked'); }
 }
 
-// Leave voice
+// Leave room
 function leaveRoom(){
   if(localStream) localStream.getTracks().forEach(t=>t.stop());
-  localStream=null; isJoined=false; isMuted=false;
-  joinBtn.style.display=''; leaveBtn.style.display='none'; toggleMuteBtn.style.display='none'; micStateEl.textContent='off';
+  localStream=null; isJoined=false; isMuted=false; micStateEl.textContent='off';
+  joinBtn.style.display=''; leaveBtn.style.display='none'; toggleMuteBtn.style.display='none';
   const members = membersMap[currentRoom]||[];
   const me = members.find(m=>m.id===clientId);
   if(me) me.joined=false;
   drone.publish({room:'observable-'+currentRoom,message:{type:'left',id:clientId}});
+  // close all peers
+  Object.values(peers).forEach(p=>{
+    if(p.pc) p.pc.close();
+    if(p.audioEl) p.audioEl.remove();
+  });
+  peers={};
   renderParticipants();
 }
 
@@ -209,6 +260,11 @@ function toggleMute(){
   if(me) me.muted=isMuted;
   renderParticipants();
 }
+
+// Buttons
+joinBtn.onclick=joinRoom;
+leaveBtn.onclick=leaveRoom;
+toggleMuteBtn.onclick=toggleMute;
 
 // Channel switching
 channelList.querySelectorAll('.channel').forEach(ch=>{
@@ -224,16 +280,9 @@ channelList.querySelectorAll('.channel').forEach(ch=>{
   };
 });
 
-// Initial observers
+// Init observers
 ['general','gaming','lobby','music'].forEach(connectObserver);
 
-// Buttons
-joinBtn.onclick=joinRoom;
-leaveBtn.onclick=leaveRoom;
-toggleMuteBtn.onclick=toggleMute;
-
-// Optional: refresh UI every 2 sec
-setInterval(renderParticipants,2000);
 </script>
 </body>
 </html>
