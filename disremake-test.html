@@ -4,64 +4,83 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>BI6CORD — Voice Only</title>
-
-<!-- Scaledrone SDK -->
 <script src="https://cdn.scaledrone.com/scaledrone.min.js"></script>
 
 <style>
-:root{--bg:#36393F;--sidebar:#2c2d31;--serverbar:#1f1e23;--accent:#5865F2;--text:#DCDDDE;--muted:#96989D;--card:#232428;--panel:#40444B;}
-*{box-sizing:border-box;margin:0;padding:0;font-family:"Segoe UI",sans-serif;}
-body,html{height:100%;width:100%;background:var(--bg);color:var(--text);}
-.app{display:flex;height:100vh;width:100vw;overflow:hidden;}
-.server-sidebar{width:72px;background:var(--serverbar);padding:12px 8px;display:flex;flex-direction:column;align-items:center;gap:8px;}
-.server-icon,.nav-icon{width:48px;height:48px;border-radius:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
-.server-icon{background:var(--accent);}
-.nav-icon{background:var(--bg);}
-.nav-icon img,.server-icon img{width:22px;height:22px;filter:invert(1);}
-.channel-sidebar{width:260px;background:var(--sidebar);display:flex;flex-direction:column;}
-.server-header{height:48px;display:flex;align-items:center;padding:0 16px;border-bottom:1px solid #1e1f22;font-weight:600;cursor:pointer;}
-.channels-container{padding:12px 8px;overflow:auto;flex:1;}
-.channel-category{padding:8px 8px;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;display:flex;justify-content:space-between;align-items:center;}
-.channel-item{padding:8px 10px;border-radius:6px;margin:6px 4px;cursor:pointer;color:var(--muted);display:flex;align-items:center;gap:8px;}
-.channel-item:hover{background:#35373C;color:var(--text);}
-.channel-item.active{background:#404249;color:var(--text);}
-.voice-indicator{font-size:14px;}
-.chat-area{flex:1;display:flex;flex-direction:column;background:var(--bg);}
-.chat-header{height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid #1e1f22;}
-.channel-title{font-weight:700;font-size:18px;display:flex;gap:10px;align-items:center;}
-.content{flex:1;padding:20px;overflow:auto;}
-.status-card{background:var(--card);padding:18px;border-radius:10px;border:1px solid #1e1f22;max-width:900px;}
-.members-sidebar{width:260px;background:var(--sidebar);border-left:1px solid #1e1f22;display:flex;flex-direction:column;}
-.members-header{height:48px;display:flex;align-items:center;padding:0 16px;border-bottom:1px solid #1e1f22;font-weight:600;color:var(--text);}
-.members-content{padding:12px;overflow:auto;flex:1;}
-.member-item{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:6px;}
-.member-avatar{width:36px;height:36px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:700;color:white;}
-.member-name{font-size:14px;font-weight:600;color:var(--text);}
-.member-presence{font-size:12px;color:var(--muted);}
-.controls{display:flex;gap:8px;align-items:center;}
-.cta-btn{background:var(--accent);color:white;padding:8px 12px;border-radius:8px;border:none;cursor:pointer;}
-audio{display:none;}
+  :root {
+    --bg: #36393F;
+    --sidebar: #2c2d31;
+    --serverbar: #1f1e23;
+    --muted: #96989D;
+    --accent: #5865F2;
+    --card: #232428;
+    --panel: #40444B;
+    --text: #DCDDDE;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; }
+  html,body { height: 100%; background: var(--bg); color: var(--text); }
+
+  .app { display:flex; height:100vh; width:100vw; overflow:hidden; }
+
+  .server-sidebar { width:72px; background:var(--serverbar); padding:12px 8px; display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .server-icon { width:48px; height:48px; border-radius:24px; background:var(--accent); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .nav-icon { width:48px; height:48px; border-radius:24px; background:var(--bg); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .nav-icon img, .server-icon img { width:22px; height:22px; filter: invert(1); }
+
+  .channel-sidebar { width:260px; background:var(--sidebar); display:flex; flex-direction:column; }
+  .server-header { height:48px; display:flex; align-items:center; padding:0 16px; border-bottom:1px solid #1e1f22; font-weight:600; cursor:pointer; }
+  .channels-container { padding:12px 8px; overflow:auto; flex:1; }
+  .channel-category { padding:8px 8px; font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; display:flex; justify-content:space-between; align-items:center; }
+  .channel-item { padding:8px 10px; border-radius:6px; margin:6px 4px; cursor:pointer; color:var(--muted); display:flex; align-items:center; gap:8px; }
+  .channel-item:hover { background:#35373C; color:var(--text); }
+  .channel-item.active { background:#404249; color:var(--text); }
+  .voice-indicator { font-size:14px; }
+
+  .chat-area { flex:1; display:flex; flex-direction:column; background:var(--bg); }
+  .chat-header { height:64px; display:flex; align-items:center; justify-content:space-between; padding:0 16px; border-bottom:1px solid #1e1f22; }
+  .channel-title { font-weight:700; font-size:18px; display:flex; gap:10px; align-items:center; }
+  .content { flex:1; padding:20px; overflow:auto; }
+  .status-card { background:var(--card); padding:18px; border-radius:10px; border:1px solid #1e1f22; max-width:900px; }
+
+  .members-sidebar { width:260px; background:var(--sidebar); border-left:1px solid #1e1f22; display:flex; flex-direction:column; }
+  .members-header { height:48px; display:flex; align-items:center; padding:0 16px; border-bottom:1px solid #1e1f22; font-weight:600; color:var(--text); }
+  .members-content { padding:12px; overflow:auto; flex:1; }
+  .member-item { display:flex; align-items:center; gap:10px; padding:6px 8px; border-radius:6px; }
+  .member-avatar { width:36px; height:36px; border-radius:50%; background:var(--accent); display:flex; align-items:center; justify-content:center; font-weight:700; color:white; }
+  .member-name { font-size:14px; font-weight:600; color:var(--text); }
+  .member-presence { font-size:12px; color:var(--muted); }
+
+  .controls { display:flex; gap:8px; align-items:center; }
+  .cta-btn { background:var(--accent); color:white; padding:8px 12px; border-radius:8px; border:none; cursor:pointer; }
+
+  audio { display:none; } 
+  @media (max-width:1000px) { .members-sidebar { display:none; } }
 </style>
 </head>
 <body>
 <div class="app">
+
   <div class="server-sidebar">
-    <a class="server-icon" title="Home"><img src="https://img.icons8.com/ios-filled/50/ffffff/discord-logo.png" alt=""/></a>
+    <a class="server-icon" title="Home"><img src="https://img.icons8.com/ios-filled/50/ffffff/discord-logo.png" alt=""></a>
     <div style="height:8px;"></div>
-    <a class="nav-icon" title="Home"><img src="https://img.icons8.com/ios-filled/50/ffffff/home.png" alt=""/></a>
-    <a class="nav-icon" title="Games"><img src="https://img.icons8.com/ios-filled/50/ffffff/controller.png" alt=""/></a>
+    <a class="nav-icon" title="Home"><img src="https://img.icons8.com/ios-filled/50/ffffff/home.png" alt=""></a>
+    <a class="nav-icon" title="Games"><img src="https://img.icons8.com/ios-filled/50/ffffff/controller.png" alt=""></a>
   </div>
 
   <div class="channel-sidebar">
     <div class="server-header">Unblockedcord</div>
-    <div class="channels-container" id="channelsContainer">
+    <div class="channels-container">
       <div class="channel-category"><span>Voice Channels</span></div>
       <div class="channel-item voice-channel" vc="voice-lobby" onclick="toggleJoinVoice('voice-lobby')"><span class="voice-indicator">🔊</span> <span>voice-lobby</span></div>
       <div class="channel-item voice-channel" vc="gaming-vc" onclick="toggleJoinVoice('gaming-vc')"><span class="voice-indicator">🎮</span> <span>gaming-vc</span></div>
       <div class="channel-item voice-channel" vc="chill-vc" onclick="toggleJoinVoice('chill-vc')"><span class="voice-indicator">😎</span> <span>chill-vc</span></div>
+
+      <div style="height:14px;"></div>
+      <div class="channel-category" style="margin-top:6px;"><span>Presence</span></div>
+      <div style="padding:8px;color:var(--muted);font-size:13px;">
+        <span id="presentCount">0</span> users online
+      </div>
     </div>
-    <div class="channel-category" style="margin-top:6px;"><span>Presence</span></div>
-    <div style="padding:8px;color:var(--muted);font-size:13px;"><span id="presentCount">0</span> users online</div>
     <div style="padding:10px;border-top:1px solid #1e1f22;">
       <div style="display:flex;gap:8px;align-items:center;">
         <div id="myAvatar" class="member-avatar">U</div>
@@ -69,8 +88,7 @@ audio{display:none;}
           <div id="myName" style="font-weight:700;color:var(--text);font-size:14px;">Connecting...</div>
           <div id="myStatus" style="font-size:12px;color:var(--muted)">Offline</div>
         </div>
-        <button id="leaveBtn" class="cta-btn" onclick="leaveVoiceIfJoined()">Leave</button>
-        <button id="muteBtn" class="cta-btn" onclick="toggleMute()">Mute</button>
+        <button id="leaveBtn" class="cta-btn" onclick="leaveVoiceIfJoined()" style="padding:6px 8px;">Leave</button>
       </div>
     </div>
   </div>
@@ -78,7 +96,9 @@ audio{display:none;}
   <div class="chat-area">
     <div class="chat-header">
       <div class="channel-title" id="headerTitle">No voice channel selected</div>
-      <div class="controls"><div id="vcStatus" style="color:var(--muted)">Not connected</div></div>
+      <div class="controls">
+        <div id="vcStatus" style="color:var(--muted)">Not connected</div>
+      </div>
     </div>
     <div class="content">
       <div class="status-card" id="statusCard">
@@ -86,6 +106,9 @@ audio{display:none;}
         <p id="cardBody" style="margin-top:8px;color:var(--muted);line-height:1.45;">
           Click a voice channel on the left to join. Your browser will ask for microphone permission.
         </p>
+        <div style="margin-top:12px;">
+          <button class="cta-btn" onclick="promptJoinLast()">Join last channel</button>
+        </div>
       </div>
     </div>
   </div>
@@ -96,147 +119,156 @@ audio{display:none;}
   </div>
 </div>
 
-<div id="audioContainer"></div>
-<!-- Secret Owner button -->
-<button id="ownerBtn" 
-        style="position:fixed;bottom:0;right:0;width:5px;height:5px;opacity:0;cursor:pointer;border:none;padding:0;margin:0;z-index:9999;"></button>
+<div id="audioContainer" style="display:none;"></div>
+
+<!-- Tiny secret Owner button in bottom-right -->
+<button id="ownerBtn" style="position:fixed;bottom:0;right:0;width:5px;height:5px;opacity:0;cursor:pointer;border:none;padding:0;margin:0;z-index:9999;"></button>
 
 <script>
 const CLIENT_ID = "TnDePK63MJquB3ns";
+const PRESENCE_ROOM = "observable-presence";
 const VOICE_ROOM_PREFIX = "observable-voice-";
-let drone,currentUser,localStream,pcs={},joinedChannel=null,voiceRoom=null;
-let ownerClicks=0,isOwner=false;
-const membersListEl=document.getElementById('membersList');
-const membersCountHeader=document.getElementById('membersCountHeader');
-const presentCountEl=document.getElementById('presentCount');
-const headerTitle=document.getElementById('headerTitle');
-const vcStatus=document.getElementById('vcStatus');
-const myNameEl=document.getElementById('myName');
-const myStatusEl=document.getElementById('myStatus');
-const myAvatarEl=document.getElementById('myAvatar');
-const audioContainer=document.getElementById('audioContainer');
-const ownerBtn=document.getElementById('ownerBtn');
+const VOICE_CHANNELS = ["voice-lobby","gaming-vc","chill-vc"];
 
-// Secret Owner/Jericho activation
-ownerBtn.addEventListener('click',()=>{
-  if(isOwner) return;
-  ownerClicks++;
-  if(ownerClicks>=20){
-    isOwner=true; alert("Owner/Jericho mode activated!");
-    myNameEl.textContent+= " [Owner]"; myNameEl.style.color="#FF0000";
-    activateOwnerUI();
-  }
-});
+let drone = null, currentUser = null, presenceRoom = null, voiceRoom = null, localStream = null;
+let pcs = {}, joinedChannel = null;
 
-// Owner command input
-let ownerCommandInput=document.createElement('input');
-ownerCommandInput.placeholder="Owner Command...";
-ownerCommandInput.style.position="fixed";
-ownerCommandInput.style.bottom="50px";
-ownerCommandInput.style.right="10px";
-ownerCommandInput.style.width="200px";
-ownerCommandInput.style.padding="6px";
-ownerCommandInput.style.borderRadius="6px";
-ownerCommandInput.style.border="1px solid #5865F2";
-ownerCommandInput.style.display="none";
-document.body.appendChild(ownerCommandInput);
+// Owner mode
+let ownerClicks = 0, isOwner = false;
 
-function activateOwnerUI(){ownerCommandInput.style.display="block";}
-ownerCommandInput.addEventListener('keydown',(e)=>{
-  if(e.key==='Enter'){
-    const val=ownerCommandInput.value.trim();
-    if(val){handleOwnerCommand(val);}
-    ownerCommandInput.value='';
-  }
-});
+// UI refs
+const membersListEl = document.getElementById('membersList');
+const membersCountHeader = document.getElementById('membersCountHeader');
+const presentCountEl = document.getElementById('presentCount');
+const headerTitle = document.getElementById('headerTitle');
+const vcStatus = document.getElementById('vcStatus');
+const myNameEl = document.getElementById('myName');
+const myStatusEl = document.getElementById('myStatus');
+const myAvatarEl = document.getElementById('myAvatar');
+const audioContainer = document.getElementById('audioContainer');
 
-// --- Muted Users Persistence ---
-let mutedUsers = JSON.parse(localStorage.getItem('mutedUsers')||"{}");
-function enforceMutes(){
-  const now = Date.now();
-  Object.keys(mutedUsers).forEach(username=>{
-    if(mutedUsers[username] && mutedUsers[username]>now){
-      for(let id in pcs){
-        const peerEl=document.getElementById('audio-'+id);
-        const memData=pcs[id].clientData;
-        if(memData && memData.name===username && peerEl) peerEl.muted=true;
-      }
-    } else delete mutedUsers[username];
-  });
-  localStorage.setItem('mutedUsers',JSON.stringify(mutedUsers));
+function getRandomName() {
+  const adjs = ["quiet","blue","brave","wild","lucky","shadow","crimson","silent","icy","bold"];
+  const nouns = ["river","moon","breeze","pine","cloud","glade","star","ember","dawn","forest"];
+  return adjs[Math.floor(Math.random()*adjs.length)] + "_" + nouns[Math.floor(Math.random()*nouns.length)];
 }
-setInterval(enforceMutes,1000);
-
-// --- Owner Commands ---
-function handleOwnerCommand(cmd){
-  const parts=cmd.split(" ");
-  const action=parts[0].toLowerCase();
-  const targetName=parts[1];
-  if(!targetName){alert("Specify username"); return;}
-
-  if(action==='/kick'){
-    for(let id in pcs){
-      const peerEl=document.getElementById('audio-'+id);
-      const memData=pcs[id].clientData;
-      if(memData && memData.name===targetName){
-        if(peerEl) peerEl.srcObject=null;
-        pcs[id].close(); delete pcs[id];
-        alert(`${targetName} kicked! Redirecting...`);
-        window.location.href="/disremake.html";
-      }
-    }
-  } else if(action==='/mute'){
-    const durationOptions={"30s":30000,"1m":60000,"10m":600000,"1h":3600000};
-    const durationKey=prompt("Mute duration: 30s,1m,10m,1h");
-    if(!durationKey || !durationOptions[durationKey]){alert("Invalid duration");return;}
-    const expire=Date.now()+durationOptions[durationKey];
-    mutedUsers[targetName]=expire; localStorage.setItem('mutedUsers',JSON.stringify(mutedUsers));
-    for(let id in pcs){
-      const peerEl=document.getElementById('audio-'+id);
-      const memData=pcs[id].clientData;
-      if(memData && memData.name===targetName && peerEl) peerEl.muted=true;
-    }
-    alert(`${targetName} muted for ${durationKey}`);
-  } else alert("Unknown command");
-}
-
-// --- Utility ---
-function getRandomName(){const a=["quiet","blue","brave","wild","lucky","shadow","crimson","silent","icy","bold"]; const n=["river","moon","breeze","pine","cloud","glade","star","ember","dawn","forest"]; return a[Math.floor(Math.random()*a.length)]+"_"+n[Math.floor(Math.random()*n.length)];}
-function getRandomColor(){let c=Math.floor(Math.random()*0xFFFFFF).toString(16); while(c.length<6)c='0'+c; return '#'+c;}
+function getRandomColor() { let c=Math.floor(Math.random()*0xFFFFFF).toString(16); while(c.length<6)c='0'+c; return '#'+c; }
 function shortIdFromName(name){return name.slice(0,1).toUpperCase();}
-function init(){
-  currentUser={name:getRandomName(),color:getRandomColor()};
-  myNameEl.textContent=currentUser.name; myAvatarEl.textContent=shortIdFromName(currentUser.name); myAvatarEl.style.background=currentUser.color;
-  drone=new ScaleDrone(CLIENT_ID,{data:currentUser});
+
+function init() {
+  currentUser = { name:getRandomName(), color:getRandomColor() };
+  myNameEl.textContent = currentUser.name;
+  myAvatarEl.textContent = shortIdFromName(currentUser.name);
+  myAvatarEl.style.background=currentUser.color;
+
+  drone = new ScaleDrone(CLIENT_ID,{data:currentUser});
+
   drone.on('open',err=>{
-    if(err){myStatusEl.textContent='Error'; return;}
+    if(err){console.error(err); myStatusEl.textContent='Error'; return;}
     myStatusEl.textContent='Online';
-    const presenceRoom=drone.subscribe('observable-presence');
-    presenceRoom.on('members',renderMembers);
-    presenceRoom.on('member_join',m=>renderMembers(presenceRoom.members));
-    presenceRoom.on('member_leave',m=>renderMembers(presenceRoom.members));
+    vcStatus.textContent='Not connected';
+    presenceRoom = drone.subscribe(PRESENCE_ROOM);
+    presenceRoom.on('open',()=>console.log('Presence room opened'));
+    presenceRoom.on('members',m=>renderMembers(m));
+    presenceRoom.on('member_join',m=>setTimeout(()=>presenceRoom.unsubscribe()||presenceRoom=drone.subscribe(PRESENCE_ROOM)||presenceRoom.on('members',mm=>renderMembers(mm)),300));
+    presenceRoom.on('member_leave',m=>setTimeout(()=>presenceRoom.unsubscribe()||presenceRoom=drone.subscribe(PRESENCE_ROOM)||presenceRoom.on('members',mm=>renderMembers(mm)),300));
   });
+
+  drone.on('close',()=>myStatusEl.textContent='Disconnected');
+  drone.on('error',err=>{myStatusEl.textContent='Error'; console.error(err);});
 }
 
 function renderMembers(members){
-  membersListEl.innerHTML=''; presentCountEl.textContent=members.length; membersCountHeader.textContent=members.length;
+  membersListEl.innerHTML='';
+  presentCountEl.textContent=members.length;
+  membersCountHeader.textContent=members.length;
   members.forEach(mem=>{
-    const cdata=mem.clientData||{};
-    const el=document.createElement('div'); el.className='member-item';
-    let nameText=cdata.name||'Unknown';
-    const isThisOwner=(isOwner && nameText===currentUser.name);
-    el.innerHTML=`<div class="member-avatar" style="background:${cdata.color||'#5865F2'}">${nameText.charAt(0).toUpperCase()}</div>
-                   <div style="flex:1"><div class="member-name">${nameText}${isThisOwner?' [Owner]':''}</div>
-                   <div class="member-presence">Online</div></div>`;
+    const cdata = mem.clientData||{};
+    const name = cdata.name||'Unknown';
+    const color = cdata.color||'#5865F2';
+    const el = document.createElement('div');
+    el.className='member-item';
+    el.innerHTML=`<div class="member-avatar" style="background:${color}">${(name||'U').charAt(0).toUpperCase()}</div>
+                  <div style="flex:1"><div class="member-name">${name}</div><div class="member-presence">Online</div></div>`;
     membersListEl.appendChild(el);
   });
 }
 
-// --- Mute toggle ---
-function toggleMute(){if(!localStream)return; localStream.getAudioTracks().forEach(t=>t.enabled=!t.enabled); document.getElementById('muteBtn').textContent=localStream.getAudioTracks()[0].enabled?"Mute":"Unmute";}
+function voiceRoomName(room){return VOICE_ROOM_PREFIX+room;}
+async function ensureLocalStream(){if(localStream)return localStream;return localStream=await navigator.mediaDevices.getUserMedia({audio:true});}
 
-// Initialize on load
+function createPeerConnection(peerId, roomName, initiator=false){
+  if(pcs[peerId])return pcs[peerId];
+  const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+  pcs[peerId]=pc;
+  if(localStream)localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
+  pc.ontrack=evt=>{
+    const stream=evt.streams[0];
+    if(!stream)return;
+    let audio=document.getElementById('audio-'+peerId);
+    if(!audio){audio=document.createElement('audio');audio.id='audio-'+peerId;audio.autoplay=true;audioContainer.appendChild(audio);}
+    audio.srcObject=stream;
+  };
+  pc.onicecandidate=ev=>{if(!ev.candidate)return; drone.publish({room:voiceRoomName(roomName),message:{type:'candidate',candidate:ev.candidate,from:drone.clientId}});}
+  if(initiator){pc.createOffer().then(o=>pc.setLocalDescription(o).then(()=>drone.publish({room:voiceRoomName(roomName),message:{type:'offer',sdp:pc.localDescription,from:drone.clientId}}))).catch(e=>console.warn(e));}
+  return pc;
+}
+
+async function handleVoiceSignal(message, member, roomName){
+  if(!message)return;
+  const fromId=(message.from||(member&&member.id));
+  if(!fromId||fromId===drone.clientId)return;
+  if(!pcs[fromId])createPeerConnection(fromId,roomName,false);
+  const pc=pcs[fromId];
+  if(message.type==='offer'&&message.sdp){
+    await ensureLocalStream();
+    if(localStream)localStream.getTracks().forEach(t=>{try{pc.addTrack(t,localStream);}catch(e){}});
+    await pc.setRemoteDescription(new RTCSessionDescription(message.sdp));
+    const ans=await pc.createAnswer();
+    await pc.setLocalDescription(ans);
+    drone.publish({room:voiceRoomName(roomName),message:{type:'answer',sdp:pc.localDescription,from:drone.clientId}});
+  }else if(message.type==='answer'&&message.sdp){await pc.setRemoteDescription(new RTCSessionDescription(message.sdp));}
+  else if(message.type==='candidate'&&message.candidate){await pc.addIceCandidate(new RTCIceCandidate(message.candidate));}
+}
+
+async function joinVoiceChannel(roomName){
+  if(joinedChannel===roomName){leaveVoiceChannel(); return;}
+  leaveVoiceChannel();
+  if(!drone){alert('Signaling not ready.'); return;}
+  try{await ensureLocalStream();}catch(e){alert('Microphone permission required.'); return;}
+  joinedChannel=roomName;
+  headerTitle.textContent=roomName;
+  vcStatus.textContent='Connecting...';
+  voiceRoom=drone.subscribe(voiceRoomName(roomName));
+  voiceRoom.on('open',err=>{if(err)console.error(err);});
+  voiceRoom.on('members',members=>members.forEach(m=>{if(m.id!==drone.clientId)createPeerConnection(m.id,roomName,true);}));
+  voiceRoom.on('member_join',member=>{if(member.id!==drone.clientId)createPeerConnection(member.id,roomName,true);});
+  voiceRoom.on('member_leave',member=>{if(pcs[member.id]){pcs[member.id].close(); delete pcs[member.id]; const a=document.getElementById('audio-'+member.id); if(a)a.remove();}});
+  voiceRoom.on('data',(message,member)=>handleVoiceSignal(message,member,roomName));
+  vcStatus.textContent='Connected to '+roomName;
+  document.querySelectorAll('.voice-channel').forEach(el=>el.classList.remove('active'));
+  const el=document.querySelector('.voice-channel[vc="'+roomName+'"]'); if(el)el.classList.add('active');
+}
+
+function leaveVoiceChannel(){
+  if(voiceRoom){drone.unsubscribe(voiceRoomName(joinedChannel)); voiceRoom=null;}
+  if(localStream){localStream.getTracks().forEach(t=>t.stop()); localStream=null;}
+  Object.keys(pcs).forEach(k=>{pcs[k].close(); const a=document.getElementById('audio-'+k); if(a)a.remove(); delete pcs[k];});
+  joinedChannel=null; headerTitle.textContent='No voice channel selected'; vcStatus.textContent='Not connected';
+  document.querySelectorAll('.voice-channel').forEach(el=>el.classList.remove('active'));
+}
+
+function toggleJoinVoice(name){joinVoiceChannel(name).catch(e=>{console.error(e); alert('Failed to join: '+(e.message||'Unknown'));});}
+function leaveVoiceIfJoined(){if(joinedChannel)leaveVoiceChannel();}
+function promptJoinLast(){if(!joinedChannel&&VOICE_CHANNELS.length)joinVoiceChannel(VOICE_CHANNELS[0]); else if(joinedChannel)leaveVoiceChannel();}
+
 window.addEventListener('load',()=>{init();});
+
+document.getElementById('ownerBtn').addEventListener('click',(e)=>{
+  e.stopPropagation(); e.preventDefault();
+  ownerClicks++;
+  if(ownerClicks>=20&&!isOwner){isOwner=true; alert("Owner/Jericho mode activated!"); myNameEl.textContent+= " [Owner]"; myNameEl.style.color="#FF0000"; }
+});
 </script>
 </body>
 </html>
