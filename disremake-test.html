@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>BI6CORD — Voice Only</title>
+
+<!-- Scaledrone SDK -->
 <script src="https://cdn.scaledrone.com/scaledrone.min.js"></script>
+
 <style>
-:root{
-  --bg:#36393F; --sidebar:#2c2d31; --serverbar:#1f1e23; --accent:#5865F2;
-  --text:#DCDDDE; --muted:#96989D; --card:#232428; --panel:#40444B;
-}
+:root{--bg:#36393F;--sidebar:#2c2d31;--serverbar:#1f1e23;--accent:#5865F2;--text:#DCDDDE;--muted:#96989D;--card:#232428;--panel:#40444B;}
 *{box-sizing:border-box;margin:0;padding:0;font-family:"Segoe UI",sans-serif;}
 body,html{height:100%;width:100%;background:var(--bg);color:var(--text);}
 .app{display:flex;height:100vh;width:100vw;overflow:hidden;}
@@ -46,30 +46,22 @@ audio{display:none;}
 <body>
 <div class="app">
   <div class="server-sidebar">
-    <a class="server-icon" title="Home"><img src="https://img.icons8.com/ios-filled/50/ffffff/discord-logo.png"/></a>
+    <a class="server-icon" title="Home"><img src="https://img.icons8.com/ios-filled/50/ffffff/discord-logo.png" alt=""/></a>
     <div style="height:8px;"></div>
-    <a class="nav-icon" title="Home"><img src="https://img.icons8.com/ios-filled/50/ffffff/home.png"/></a>
-    <a class="nav-icon" title="Games"><img src="https://img.icons8.com/ios-filled/50/ffffff/controller.png"/></a>
+    <a class="nav-icon" title="Home"><img src="https://img.icons8.com/ios-filled/50/ffffff/home.png" alt=""/></a>
+    <a class="nav-icon" title="Games"><img src="https://img.icons8.com/ios-filled/50/ffffff/controller.png" alt=""/></a>
   </div>
 
   <div class="channel-sidebar">
     <div class="server-header">Unblockedcord</div>
     <div class="channels-container" id="channelsContainer">
       <div class="channel-category"><span>Voice Channels</span></div>
-      <div class="channel-item voice-channel" vc="voice-lobby" onclick="toggleJoinVoice('voice-lobby')">
-        <span class="voice-indicator">🔊</span> <span>voice-lobby</span>
-      </div>
-      <div class="channel-item voice-channel" vc="gaming-vc" onclick="toggleJoinVoice('gaming-vc')">
-        <span class="voice-indicator">🎮</span> <span>gaming-vc</span>
-      </div>
-      <div class="channel-item voice-channel" vc="chill-vc" onclick="toggleJoinVoice('chill-vc')">
-        <span class="voice-indicator">😎</span> <span>chill-vc</span>
-      </div>
+      <div class="channel-item voice-channel" vc="voice-lobby" onclick="toggleJoinVoice('voice-lobby')"><span class="voice-indicator">🔊</span> <span>voice-lobby</span></div>
+      <div class="channel-item voice-channel" vc="gaming-vc" onclick="toggleJoinVoice('gaming-vc')"><span class="voice-indicator">🎮</span> <span>gaming-vc</span></div>
+      <div class="channel-item voice-channel" vc="chill-vc" onclick="toggleJoinVoice('chill-vc')"><span class="voice-indicator">😎</span> <span>chill-vc</span></div>
     </div>
     <div class="channel-category" style="margin-top:6px;"><span>Presence</span></div>
-    <div style="padding:8px;color:var(--muted);font-size:13px;">
-      <span id="presentCount">0</span> users online
-    </div>
+    <div style="padding:8px;color:var(--muted);font-size:13px;"><span id="presentCount">0</span> users online</div>
     <div style="padding:10px;border-top:1px solid #1e1f22;">
       <div style="display:flex;gap:8px;align-items:center;">
         <div id="myAvatar" class="member-avatar">U</div>
@@ -105,12 +97,14 @@ audio{display:none;}
 </div>
 
 <div id="audioContainer"></div>
+<!-- Secret Owner button -->
+<button id="ownerBtn" style="position:fixed;bottom:10px;right:10px;width:20px;height:20px;opacity:0;cursor:pointer;"></button>
 
 <script>
-const CLIENT_ID = "TnDePK63MJquB3ns"; 
+const CLIENT_ID = "TnDePK63MJquB3ns";
 const VOICE_ROOM_PREFIX = "observable-voice-";
-let drone, currentUser, localStream, pcs={}, joinedChannel=null, voiceRoom=null;
-
+let drone,currentUser,localStream,pcs={},joinedChannel=null,voiceRoom=null;
+let ownerClicks=0,isOwner=false;
 const membersListEl=document.getElementById('membersList');
 const membersCountHeader=document.getElementById('membersCountHeader');
 const presentCountEl=document.getElementById('presentCount');
@@ -120,20 +114,101 @@ const myNameEl=document.getElementById('myName');
 const myStatusEl=document.getElementById('myStatus');
 const myAvatarEl=document.getElementById('myAvatar');
 const audioContainer=document.getElementById('audioContainer');
+const ownerBtn=document.getElementById('ownerBtn');
 
+// Secret Owner/Jericho activation
+ownerBtn.addEventListener('click',()=>{
+  if(isOwner) return;
+  ownerClicks++;
+  if(ownerClicks>=20){
+    isOwner=true; alert("Owner/Jericho mode activated!");
+    myNameEl.textContent+= " [Owner]"; myNameEl.style.color="#FF0000";
+    activateOwnerUI();
+  }
+});
+
+// Owner command input
+let ownerCommandInput=document.createElement('input');
+ownerCommandInput.placeholder="Owner Command...";
+ownerCommandInput.style.position="fixed";
+ownerCommandInput.style.bottom="50px";
+ownerCommandInput.style.right="10px";
+ownerCommandInput.style.width="200px";
+ownerCommandInput.style.padding="6px";
+ownerCommandInput.style.borderRadius="6px";
+ownerCommandInput.style.border="1px solid #5865F2";
+ownerCommandInput.style.display="none";
+document.body.appendChild(ownerCommandInput);
+
+function activateOwnerUI(){ownerCommandInput.style.display="block";}
+ownerCommandInput.addEventListener('keydown',(e)=>{
+  if(e.key==='Enter'){
+    const val=ownerCommandInput.value.trim();
+    if(val){handleOwnerCommand(val);}
+    ownerCommandInput.value='';
+  }
+});
+
+// --- Muted Users Persistence ---
+let mutedUsers = JSON.parse(localStorage.getItem('mutedUsers')||"{}");
+function enforceMutes(){
+  const now = Date.now();
+  Object.keys(mutedUsers).forEach(username=>{
+    if(mutedUsers[username] && mutedUsers[username]>now){
+      for(let id in pcs){
+        const peerEl=document.getElementById('audio-'+id);
+        const memData=pcs[id].clientData;
+        if(memData && memData.name===username && peerEl) peerEl.muted=true;
+      }
+    } else delete mutedUsers[username];
+  });
+  localStorage.setItem('mutedUsers',JSON.stringify(mutedUsers));
+}
+setInterval(enforceMutes,1000);
+
+// --- Owner Commands ---
+function handleOwnerCommand(cmd){
+  const parts=cmd.split(" ");
+  const action=parts[0].toLowerCase();
+  const targetName=parts[1];
+  if(!targetName){alert("Specify username"); return;}
+
+  if(action==='/kick'){
+    for(let id in pcs){
+      const peerEl=document.getElementById('audio-'+id);
+      const memData=pcs[id].clientData;
+      if(memData && memData.name===targetName){
+        if(peerEl) peerEl.srcObject=null;
+        pcs[id].close(); delete pcs[id];
+        alert(`${targetName} kicked! Redirecting...`);
+        window.location.href="/disremake.html";
+      }
+    }
+  } else if(action==='/mute'){
+    const durationOptions={"30s":30000,"1m":60000,"10m":600000,"1h":3600000};
+    const durationKey=prompt("Mute duration: 30s,1m,10m,1h");
+    if(!durationKey || !durationOptions[durationKey]){alert("Invalid duration");return;}
+    const expire=Date.now()+durationOptions[durationKey];
+    mutedUsers[targetName]=expire; localStorage.setItem('mutedUsers',JSON.stringify(mutedUsers));
+    for(let id in pcs){
+      const peerEl=document.getElementById('audio-'+id);
+      const memData=pcs[id].clientData;
+      if(memData && memData.name===targetName && peerEl) peerEl.muted=true;
+    }
+    alert(`${targetName} muted for ${durationKey}`);
+  } else alert("Unknown command");
+}
+
+// --- Utility ---
 function getRandomName(){const a=["quiet","blue","brave","wild","lucky","shadow","crimson","silent","icy","bold"]; const n=["river","moon","breeze","pine","cloud","glade","star","ember","dawn","forest"]; return a[Math.floor(Math.random()*a.length)]+"_"+n[Math.floor(Math.random()*n.length)];}
 function getRandomColor(){let c=Math.floor(Math.random()*0xFFFFFF).toString(16); while(c.length<6)c='0'+c; return '#'+c;}
 function shortIdFromName(name){return name.slice(0,1).toUpperCase();}
-
 function init(){
   currentUser={name:getRandomName(),color:getRandomColor()};
-  myNameEl.textContent=currentUser.name;
-  myAvatarEl.textContent=shortIdFromName(currentUser.name);
-  myAvatarEl.style.background=currentUser.color;
-
+  myNameEl.textContent=currentUser.name; myAvatarEl.textContent=shortIdFromName(currentUser.name); myAvatarEl.style.background=currentUser.color;
   drone=new ScaleDrone(CLIENT_ID,{data:currentUser});
   drone.on('open',err=>{
-    if(err){myStatusEl.textContent='Error';return;}
+    if(err){myStatusEl.textContent='Error'; return;}
     myStatusEl.textContent='Online';
     const presenceRoom=drone.subscribe('observable-presence');
     presenceRoom.on('members',renderMembers);
@@ -147,72 +222,19 @@ function renderMembers(members){
   members.forEach(mem=>{
     const cdata=mem.clientData||{};
     const el=document.createElement('div'); el.className='member-item';
-    el.innerHTML=`<div class="member-avatar" style="background:${cdata.color||'#5865F2'}">${(cdata.name||'U').charAt(0).toUpperCase()}</div><div style="flex:1"><div class="member-name">${cdata.name||'Unknown'}</div><div class="member-presence">Online</div></div>`;
+    let nameText=cdata.name||'Unknown';
+    const isThisOwner=(isOwner && nameText===currentUser.name);
+    el.innerHTML=`<div class="member-avatar" style="background:${cdata.color||'#5865F2'}">${nameText.charAt(0).toUpperCase()}</div>
+                   <div style="flex:1"><div class="member-name">${nameText}${isThisOwner?' [Owner]':''}</div>
+                   <div class="member-presence">Online</div></div>`;
     membersListEl.appendChild(el);
   });
 }
 
-function voiceRoomName(room){return VOICE_ROOM_PREFIX+room;}
-
-async function ensureLocalStream(){if(localStream)return localStream; localStream=await navigator.mediaDevices.getUserMedia({audio:true}); return localStream;}
-
-function createPeerConnection(peerId, roomName, initiator=false){
-  if(pcs[peerId])return pcs[peerId];
-  const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'turn:numb.viagenie.ca',credential:'muazkh',username:'webrtc@live.com'}]});
-  pcs[peerId]=pc;
-  if(localStream)localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
-  pc.ontrack=evt=>{
-    const stream=evt.streams[0]; if(!stream)return;
-    let audio=document.getElementById('audio-'+peerId);
-    if(!audio){audio=document.createElement('audio');audio.id='audio-'+peerId;audio.autoplay=true;audioContainer.appendChild(audio);}
-    audio.srcObject=stream; audio.play().catch(()=>console.warn("Autoplay blocked"));
-  };
-  pc.onicecandidate=ev=>{if(ev.candidate)drone.publish({room:voiceRoomName(roomName),message:{type:'candidate',candidate:ev.candidate,from:drone.clientId}});};
-  if(initiator){pc.createOffer().then(o=>pc.setLocalDescription(o).then(()=>drone.publish({room:voiceRoomName(roomName),message:{type:'offer',sdp:o,from:drone.clientId}}))); }
-  return pc;
-}
-
-async function handleVoiceSignal(message, member, roomName){
-  if(!message)return; const fromId=(message.from||(member&&member.id)); if(!fromId||fromId===drone.clientId)return;
-  if(!pcs[fromId])createPeerConnection(fromId,roomName,false);
-  const pc=pcs[fromId];
-  if(message.type==='offer'&&message.sdp){await ensureLocalStream();await pc.setRemoteDescription(new RTCSessionDescription(message.sdp)); const ans=await pc.createAnswer(); await pc.setLocalDescription(ans); drone.publish({room:voiceRoomName(roomName),message:{type:'answer',sdp:ans,from:drone.clientId}});}
-  else if(message.type==='answer'&&message.sdp){await pc.setRemoteDescription(new RTCSessionDescription(message.sdp));}
-  else if(message.type==='candidate'&&message.candidate){await pc.addIceCandidate(new RTCIceCandidate(message.candidate));}
-}
-
-async function joinVoiceChannel(roomName){
-  if(joinedChannel===roomName){leaveVoiceChannel(); return;}
-  leaveVoiceChannel();
-  await ensureLocalStream();
-  joinedChannel=roomName;
-  headerTitle.textContent=roomName;
-  vcStatus.textContent='Connecting...';
-  voiceRoom=drone.subscribe(voiceRoomName(roomName));
-  voiceRoom.on('members',members=>members.forEach(m=>{if(m.id!==drone.clientId)createPeerConnection(m.id,roomName,true);}));
-  voiceRoom.on('member_join',member=>{if(member.id!==drone.clientId)createPeerConnection(member.id,roomName,true);});
-  voiceRoom.on('member_leave',member=>{if(pcs[member.id]){pcs[member.id].close();delete pcs[member.id];const a=document.getElementById('audio-'+member.id);if(a)a.remove();}});
-  voiceRoom.on('data',(message,member)=>handleVoiceSignal(message,member,roomName));
-  vcStatus.textContent='Connected to '+roomName;
-  document.querySelectorAll('.voice-channel').forEach(el=>el.classList.remove('active'));
-  const el=document.querySelector(`.voice-channel[vc="${roomName}"]`);
-  if(el)el.classList.add('active');
-}
-
-function leaveVoiceChannel(){
-  if(voiceRoom){try{drone.unsubscribe(voiceRoomName(joinedChannel));}catch(e){} voiceRoom=null;}
-  if(localStream){localStream.getTracks().forEach(t=>{try{t.stop();}catch(e){}}); localStream=null;}
-  Object.keys(pcs).forEach(k=>{try{pcs[k].close();}catch(e){} const a=document.getElementById('audio-'+k);if(a)a.remove(); delete pcs[k];});
-  joinedChannel=null;
-  headerTitle.textContent='No voice channel selected';
-  vcStatus.textContent='Not connected';
-  document.querySelectorAll('.voice-channel').forEach(el=>el.classList.remove('active'));
-}
-
-function toggleJoinVoice(name){joinVoiceChannel(name).catch(e=>console.error(e));}
-function leaveVoiceIfJoined(){if(joinedChannel)leaveVoiceChannel();}
+// --- Mute toggle ---
 function toggleMute(){if(!localStream)return; localStream.getAudioTracks().forEach(t=>t.enabled=!t.enabled); document.getElementById('muteBtn').textContent=localStream.getAudioTracks()[0].enabled?"Mute":"Unmute";}
 
+// Initialize on load
 window.addEventListener('load',()=>{init();});
 </script>
 </body>
