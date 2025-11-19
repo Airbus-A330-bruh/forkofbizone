@@ -1,336 +1,171 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html>
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Simple BI6CORD Voice — Test Room</title>
+<meta charset="UTF-8">
+<title>Simple WebRTC Voice Chat</title>
 <script src="https://cdn.scaledrone.com/scaledrone.min.js"></script>
 <style>
-  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:#2f3136;color:#e6edf3;display:flex;align-items:flex-start;gap:16px;padding:20px}
-  .card{background:#202225;padding:16px;border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,.4)}
-  button{background:#5865f2;color:white;padding:8px 12px;border:0;border-radius:8px;cursor:pointer}
-  #members{min-width:200px}
-  .member{padding:6px 8px;border-radius:6px;margin:4px 0;background:#2b2d30}
-  audio{width:1px;height:1px;position:fixed;left:-10000px;top:-10000px}
+body { background:#222; color:white; font-family:sans-serif; padding:20px; }
+button { padding:10px 15px; border:none; border-radius:5px; background:#5865F2; color:white; cursor:pointer; }
 </style>
 </head>
 <body>
 
-<div class="card" style="width:320px">
-  <h3>BI6CORD — Simple Voice Room</h3>
-  <div style="margin:8px 0">
-    <strong id="status">Not connected</strong>
-  </div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap">
-    <button id="joinBtn">Join Voice (click)</button>
-    <button id="leaveBtn" disabled>Leave</button>
-    <button id="muteBtn" disabled>Mute</button>
-  </div>
-  <p style="margin-top:12px;color:#9aa2b2;font-size:14px">Channel: <strong>main</strong></p>
-  <div style="margin-top:8px;color:#9aa2b2;font-size:13px">
-    This simple page uses Scaledrone for signaling and a TURN server to improve connectivity.
-  </div>
-</div>
+<h2>Simple WebRTC Voice Chat</h2>
+<button id="joinBtn">Join Voice</button>
+<button id="muteBtn" disabled>Mute</button>
+<p id="status">Not connected</p>
 
-<div class="card" id="members" style="flex:1;min-width:240px">
-  <h4>Presence</h4>
-  <div id="membersList"><em>loading...</em></div>
-</div>
-
-<!-- hidden audio container -->
-<div id="audioContainer"></div>
+<div id="audio-area"></div>
 
 <script>
-/*
-  Simple, reliable Scaledrone + WebRTC voice room ("main").
-  Instructions:
-   - Replace CLIENT_ID with your Scaledrone channel ID.
-   - Open this file in two devices/browsers.
-   - Click "Join Voice" on both and allow mic.
-*/
+// -----------------------
+// CONFIG
+// -----------------------
+const CHANNEL_ID = "TnDePK63MJquB3ns";   // your Scaledrone channel
+const ROOM_NAME  = "observable-simple-voice-room";
 
-const CLIENT_ID = "TnDePK63MJquB3ns"; // <-- REPLACE with your Scaledrone channel ID if needed
-const PRESENCE_ROOM = "observable-presence";
-const VOICE_ROOM = "observable-voice-main"; // single channel called "main"
-
-let drone = null;
-let localStream = null;
-let pcs = {};           // peerId -> RTCPeerConnection
-let joined = false;
+let drone;
+let room;
+let localStream;
+let pc;
 let muted = false;
 
-// UI refs
-const joinBtn = document.getElementById('joinBtn');
-const leaveBtn = document.getElementById('leaveBtn');
-const muteBtn = document.getElementById('muteBtn');
-const statusEl = document.getElementById('status');
-const membersList = document.getElementById('membersList');
-const audioContainer = document.getElementById('audioContainer');
+// -----------------------
+// JOIN VOICE
+// -----------------------
+document.getElementById("joinBtn").onclick = async () => {
+    document.getElementById("status").textContent = "Requesting microphone...";
 
-// presence tracking
-const presenceMembers = new Map(); // id -> clientData
-
-// Utility: random name for presence
-function randomName() {
-  const A = ["quiet","blue","brave","wild","lucky","shadow","crimson","silent","icy","bold"];
-  const B = ["river","moon","breeze","pine","cloud","glade","star","ember","dawn","forest"];
-  return A[Math.floor(Math.random()*A.length)] + "_" + B[Math.floor(Math.random()*B.length)];
-}
-
-// Initialize Scaledrone and presence subscription
-function initScaledrone() {
-  const name = randomName();
-  drone = new Scaledrone(CLIENT_ID, { data: { name } });
-
-  drone.on('open', err => {
-    if (err) {
-      console.error('Scaledrone open error', err);
-      statusEl.textContent = 'Signaling error';
-      return;
-    }
-    statusEl.textContent = 'Connected (ready)';
-    subscribePresence();
-  });
-
-  drone.on('error', e => {
-    console.error('Scaledrone error', e);
-    statusEl.textContent = 'Signaling error';
-  });
-
-  drone.on('close', () => {
-    statusEl.textContent = 'Disconnected';
-  });
-}
-
-function subscribePresence() {
-  const room = drone.subscribe(PRESENCE_ROOM);
-
-  room.on('open', () => {
-    // ok
-  });
-
-  // initial members list
-  room.on('members', (members) => {
-    presenceMembers.clear();
-    members.forEach(m => presenceMembers.set(m.id, m.clientData || {}));
-    renderPresence();
-  });
-
-  room.on('member_join', (member) => {
-    presenceMembers.set(member.id, member.clientData || {});
-    renderPresence();
-  });
-
-  room.on('member_leave', (member) => {
-    presenceMembers.delete(member.id);
-    renderPresence();
-  });
-}
-
-function renderPresence() {
-  membersList.innerHTML = '';
-  if (!presenceMembers.size) {
-    membersList.innerHTML = '<div><em>no one online</em></div>';
-    return;
-  }
-  presenceMembers.forEach((data, id) => {
-    const d = document.createElement('div');
-    d.className = 'member';
-    d.textContent = (data.name || 'User') + (id === drone.clientId ? ' (you)' : '');
-    membersList.appendChild(d);
-  });
-}
-
-// Acquire local microphone stream (once)
-async function getLocalStream() {
-  if (localStream) return localStream;
-  localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  return localStream;
-}
-
-// Create peer connection; ensure local tracks are added BEFORE creating offers
-function createPeer(peerId, initiator = false) {
-  if (pcs[peerId]) return pcs[peerId];
-
-  const pc = new RTCPeerConnection({
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      // free TURN (not guaranteed); replace with your TURN for production
-      { urls: 'turn:numb.viagenie.ca', username: 'webrtc@live.com', credential: 'muazkh' }
-    ]
-  });
-
-  pcs[peerId] = pc;
-
-  // add local tracks immediately (if available)
-  if (localStream) {
-    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-  }
-
-  // remote track handler
-  pc.ontrack = (evt) => {
-    const stream = evt.streams[0];
-    if (!stream) return;
-    let audio = document.getElementById('audio-' + peerId);
-    if (!audio) {
-      audio = document.createElement('audio');
-      audio.id = 'audio-' + peerId;
-      audio.autoplay = true;
-      audioContainer.appendChild(audio);
-    }
-    audio.srcObject = stream;
-    // user gesture already occurred (join button), but still attempt play
-    audio.play().catch(() => console.warn('autoplay blocked for audio element'));
-  };
-
-  // ICE candidate forwarding through Scaledrone
-  pc.onicecandidate = (e) => {
-    if (!e.candidate) return;
     try {
-      drone.publish({ room: VOICE_ROOM, message: { type: 'candidate', candidate: e.candidate, from: drone.clientId } });
-    } catch (err) {
-      console.warn('publish candidate failed', err);
-    }
-  };
-
-  // If initiator, create offer AFTER local tracks are added
-  if (initiator) {
-    pc.createOffer().then(offer => pc.setLocalDescription(offer))
-      .then(() => {
-        drone.publish({ room: VOICE_ROOM, message: { type: 'offer', sdp: pc.localDescription, from: drone.clientId } });
-      })
-      .catch(e => console.error('createOffer failed', e));
-  }
-
-  return pc;
-}
-
-// Handle incoming signaling messages from voice room
-async function handleSignal(message, member) {
-  if (!message) return;
-  const fromId = message.from || (member && member.id);
-  if (!fromId || fromId === drone.clientId) return;
-
-  if (!pcs[fromId]) createPeer(fromId, false);
-  const pc = pcs[fromId];
-
-  if (message.type === 'offer' && message.sdp) {
-    // ensure we have local stream and added tracks before answering
-    await getLocalStream();
-    if (localStream) localStream.getTracks().forEach(t => {
-      try { pc.addTrack(t, localStream); } catch (e) {}
-    });
-    await pc.setRemoteDescription(new RTCSessionDescription(message.sdp));
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-    drone.publish({ room: VOICE_ROOM, message: { type: 'answer', sdp: pc.localDescription, from: drone.clientId } });
-  } else if (message.type === 'answer' && message.sdp) {
-    await pc.setRemoteDescription(new RTCSessionDescription(message.sdp));
-  } else if (message.type === 'candidate' && message.candidate) {
-    try {
-      await pc.addIceCandidate(new RTCIceCandidate(message.candidate));
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (e) {
-      console.warn('addIceCandidate failed', e);
+        alert("Microphone blocked.");
+        return;
     }
-  }
-}
 
-// Subscribe to the voice room (main)
-function subscribeVoiceRoom() {
-  const room = drone.subscribe(VOICE_ROOM);
+    document.getElementById("status").textContent = "Connecting to Scaledrone...";
+    initScaledrone();
+};
 
-  room.on('open', () => {});
-  room.on('members', async (members) => {
-    // When joining voice room, create offers to existing members (after we have local stream)
-    if (!joined) return;
-    await getLocalStream();
-    members.forEach(m => {
-      if (m.id === drone.clientId) return;
-      // create initiator peer -> will createOffer
-      createPeer(m.id, true);
+// -----------------------
+// INIT SCALEDONE
+// -----------------------
+function initScaledrone() {
+    drone = new ScaleDrone(CHANNEL_ID);
+
+    drone.on('open', error => {
+        if (error) return console.error(error);
+        joinRoom();
     });
-  });
+}
 
-  room.on('member_join', async (member) => {
-    if (!joined) return;
-    if (member.id === drone.clientId) return;
-    // ensure local stream and create offer to new member
-    await getLocalStream();
-    createPeer(member.id, true);
-  });
+function joinRoom() {
+    room = drone.subscribe(ROOM_NAME);
 
-  room.on('member_leave', (member) => {
-    // cleanup
-    if (pcs[member.id]) {
-      try { pcs[member.id].close(); } catch (e) {}
-      delete pcs[member.id];
-      const a = document.getElementById('audio-' + member.id); if (a) a.remove();
+    room.on('open', error => {
+        if (error) return console.error(error);
+    });
+
+    room.on('members', members => {
+        if (members.length >= 2) {
+            startWebRTC(true); // we create offer
+        }
+    });
+
+    room.on('member_join', () => {
+        startWebRTC(true);
+    });
+
+    room.on('data', (message, member) => {
+        if (!member || member.id === drone.clientId) return;
+        handleSignaling(message);
+    });
+}
+
+// -----------------------
+// START WEBRTC
+// -----------------------
+function startWebRTC(isOfferer) {
+    pc = new RTCPeerConnection({
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: "turn:numb.viagenie.ca", username: "webrtc@live.com", credential: "muazkh" }
+        ]
+    });
+
+    localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+
+    pc.ontrack = event => {
+        const audio = document.createElement("audio");
+        audio.autoplay = true;
+        audio.srcObject = event.streams[0];
+        document.getElementById("audio-area").appendChild(audio);
+    };
+
+    pc.onicecandidate = event => {
+        if (event.candidate) {
+            drone.publish({
+                room: ROOM_NAME,
+                message: { type:'candidate', candidate:event.candidate }
+            });
+        }
+    };
+
+    if (isOfferer) {
+        pc.onnegotiationneeded = async () => {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
+            drone.publish({
+                room: ROOM_NAME,
+                message: { type:'offer', sdp:pc.localDescription }
+            });
+        };
     }
-  });
 
-  room.on('data', (message, member) => handleSignal(message, member));
+    document.getElementById("muteBtn").disabled = false;
+    document.getElementById("status").textContent = "Connected. Talking...";
 }
 
-// Public controls: join, leave, mute
-async function join() {
-  if (!drone) initScaledrone();
-  try {
-    await getLocalStream(); // user gesture will allow autoplay
-    joined = true;
-    statusEl.textContent = 'Joining voice (main)...';
-    subscribeVoiceRoom();
-    // publish presence by ensuring we're in presence room (already done in initScaledrone)
-    // notify UI
-    joinBtn.disabled = true;
-    leaveBtn.disabled = false;
-    muteBtn.disabled = false;
-    muteBtn.textContent = 'Mute';
-    muted = false;
-    statusEl.textContent = 'Joined voice — ready';
-  } catch (e) {
-    console.error('getUserMedia failed', e);
-    alert('Microphone access required.');
-  }
+// -----------------------
+// SIGNAL HANDLING
+// -----------------------
+async function handleSignaling(message) {
+    if (!pc) startWebRTC(false);
+
+    switch(message.type) {
+        case 'offer':
+            await pc.setRemoteDescription(new RTCSessionDescription(message.sdp));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+
+            drone.publish({
+                room: ROOM_NAME,
+                message: { type:'answer', sdp:pc.localDescription }
+            });
+        break;
+
+        case 'answer':
+            await pc.setRemoteDescription(new RTCSessionDescription(message.sdp));
+        break;
+
+        case 'candidate':
+            if (message.candidate) {
+                await pc.addIceCandidate(new RTCIceCandidate(message.candidate));
+            }
+        break;
+    }
 }
 
-function leave() {
-  // unsubscribe voice room by publishing a leave (Scaledrone unsubscribe used)
-  try {
-    drone.unsubscribe(VOICE_ROOM);
-  } catch (e) {}
-  // close all peer connections but keep localStream available so rejoin is faster
-  Object.keys(pcs).forEach(k => {
-    try { pcs[k].close(); } catch (e) {}
-    const a = document.getElementById('audio-' + k); if (a) a.remove();
-    delete pcs[k];
-  });
-  joined = false;
-  joinBtn.disabled = false;
-  leaveBtn.disabled = true;
-  muteBtn.disabled = true;
-  statusEl.textContent = 'Left voice';
-}
-
-// mute toggles track enabled state
-function toggleMute() {
-  if (!localStream) return;
-  muted = !muted;
-  localStream.getAudioTracks().forEach(t => t.enabled = !muted);
-  muteBtn.textContent = muted ? 'Unmute' : 'Mute';
-}
-
-// wire up UI
-joinBtn.addEventListener('click', async () => {
-  // a user interaction is required for audio autoplay in many browsers — join must be clicked
-  if (!drone) initScaledrone();
-  await join();
-});
-
-leaveBtn.addEventListener('click', () => leave());
-muteBtn.addEventListener('click', () => toggleMute());
-
-// start Scaledrone presence immediately (so presence list works even before join)
-initScaledrone();
+// -----------------------
+// MUTE
+// -----------------------
+document.getElementById("muteBtn").onclick = () => {
+    muted = !muted;
+    localStream.getAudioTracks()[0].enabled = !muted;
+    document.getElementById("muteBtn").textContent = muted ? "Unmute" : "Mute";
+};
 
 </script>
 </body>
